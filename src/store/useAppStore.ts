@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Client, Dashboard, SlidePresentation, Workspace } from '@/types'
-import { MOCK_CLIENTS, MOCK_DASHBOARDS, MOCK_PRESENTATIONS } from '@/lib/mockData'
+import { MOCK_DASHBOARDS, MOCK_PRESENTATIONS } from '@/lib/mockData'
 
 interface AppState {
   // Workspace
@@ -46,7 +46,7 @@ export const useAppStore = create<AppState>((set) => ({
   workspace: null,
   setWorkspace: (ws) => set({ workspace: ws }),
 
-  clients: MOCK_CLIENTS,
+  clients: [],
   activeClientId: null,
   setActiveClient: (id) => set({ activeClientId: id }),
   createClient: (name) => {
