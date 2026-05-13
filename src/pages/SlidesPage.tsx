@@ -328,7 +328,7 @@ export const SlidesPage = () => {
 
   return (
     <div
-      className="flex h-full outline-none"
+      className="flex-1 flex h-full outline-none"
       tabIndex={-1}
       onKeyDown={handleKeyDown}
     >
