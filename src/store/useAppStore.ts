@@ -22,6 +22,7 @@ interface AppState {
   createDashboard: (name: string, clientId?: string) => Dashboard
   deleteDashboard: (id: string) => void
   archiveDashboard: (id: string) => void
+  unarchiveDashboard: (id: string) => void
   duplicateDashboard: (id: string) => void
 
   // Presentations
@@ -31,6 +32,7 @@ interface AppState {
   createPresentation: (name: string, clientId?: string) => SlidePresentation
   deletePresentation: (id: string) => void
   archivePresentation: (id: string) => void
+  unarchivePresentation: (id: string) => void
   duplicatePresentation: (id: string) => void
 
   // UI State
@@ -101,6 +103,10 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       dashboards: state.dashboards.map((d) => (d.id === id ? { ...d, archived: true } : d)),
     })),
+  unarchiveDashboard: (id) =>
+    set((state) => ({
+      dashboards: state.dashboards.map((d) => (d.id === id ? { ...d, archived: false } : d)),
+    })),
   duplicateDashboard: (id) =>
     set((state) => {
       const original = state.dashboards.find((d) => d.id === id)
@@ -157,6 +163,10 @@ export const useAppStore = create<AppState>((set) => ({
   archivePresentation: (id) =>
     set((state) => ({
       presentations: state.presentations.map((p) => (p.id === id ? { ...p, archived: true } : p)),
+    })),
+  unarchivePresentation: (id) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) => (p.id === id ? { ...p, archived: false } : p)),
     })),
   duplicatePresentation: (id) =>
     set((state) => {

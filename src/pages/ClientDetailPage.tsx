@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { ArrowLeft, Plus, LayoutDashboard, Presentation, MoreHorizontal, Archive, Trash2, Copy } from 'lucide-react'
+import { ArrowLeft, Plus, LayoutDashboard, Presentation, MoreHorizontal, Archive, Trash2, Copy, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import { cn } from '@/lib/utils'
 import type { Dashboard, SlidePresentation } from '@/types'
@@ -7,6 +7,7 @@ import type { Dashboard, SlidePresentation } from '@/types'
 const AVATAR_COLORS = ['#4f63f7', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
 
 type ItemAction = 'archive' | 'delete' | 'duplicate'
+type ArchivedItemAction = 'restore' | 'delete'
 
 interface ItemMenuProps {
   onAction: (action: ItemAction) => void
@@ -122,6 +123,114 @@ const ItemMenu = ({ onAction, confirmLabel }: ItemMenuProps) => {
   )
 }
 
+interface ArchivedItemMenuProps {
+  onAction: (action: ArchivedItemAction) => void
+  confirmLabel: string
+}
+
+const ArchivedItemMenu = ({ onAction, confirmLabel }: ArchivedItemMenuProps) => {
+  const [open, setOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+        setConfirmDelete(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const stop = (e: React.MouseEvent) => e.stopPropagation()
+
+  const handleToggle = (e: React.MouseEvent) => {
+    stop(e)
+    setOpen((prev) => !prev)
+    setConfirmDelete(false)
+  }
+
+  const handleRestore = (e: React.MouseEvent) => {
+    stop(e)
+    onAction('restore')
+    setOpen(false)
+  }
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    stop(e)
+    setConfirmDelete(true)
+  }
+
+  const handleDeleteConfirm = (e: React.MouseEvent) => {
+    stop(e)
+    onAction('delete')
+  }
+
+  const handleDeleteCancel = (e: React.MouseEvent) => {
+    stop(e)
+    setConfirmDelete(false)
+    setOpen(false)
+  }
+
+  return (
+    <div ref={ref} onClick={stop}>
+      <button
+        onClick={handleToggle}
+        className={cn(
+          'w-7 h-7 rounded-lg flex items-center justify-center transition-colors',
+          'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass)]',
+          open ? 'opacity-100 bg-[var(--bg-glass)]' : 'opacity-0 group-hover:opacity-100'
+        )}
+      >
+        <MoreHorizontal size={14} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-8 z-50 min-w-[150px] rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] shadow-lg py-1">
+          {confirmDelete ? (
+            <div className="px-3 py-2">
+              <p className="text-xs text-[var(--text-secondary)] mb-2">{confirmLabel}</p>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={handleDeleteConfirm}
+                  className="flex-1 text-xs px-2 py-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                >
+                  Confirmar
+                </button>
+                <button
+                  onClick={handleDeleteCancel}
+                  className="flex-1 text-xs px-2 py-1 rounded-lg bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={handleRestore}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass)] transition-colors"
+              >
+                <RotateCcw size={13} />
+                Restaurar
+              </button>
+              <button
+                onClick={handleDeleteClick}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                <Trash2 size={13} />
+                Excluir
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface DashboardCardProps {
   dashboard: Dashboard
   onOpen: () => void
@@ -145,6 +254,41 @@ const DashboardCard = ({ dashboard, onOpen, onAction }: DashboardCardProps) => (
       </div>
       <div className="relative">
         <ItemMenu onAction={onAction} confirmLabel="Excluir dashboard?" />
+      </div>
+    </div>
+    <h3 className="font-display font-semibold text-sm text-[var(--text-primary)]">
+      {dashboard.name}
+    </h3>
+    {dashboard.description && (
+      <p className="text-xs text-[var(--text-muted)] mt-1 truncate">{dashboard.description}</p>
+    )}
+    <p className="text-xs text-[var(--text-muted)] mt-2">
+      Atualizado {new Date(dashboard.updatedAt).toLocaleDateString('pt-BR')}
+    </p>
+  </div>
+)
+
+interface ArchivedDashboardCardProps {
+  dashboard: Dashboard
+  onAction: (action: ArchivedItemAction) => void
+}
+
+const ArchivedDashboardCard = ({ dashboard, onAction }: ArchivedDashboardCardProps) => (
+  <div className="group relative text-left p-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] opacity-60 transition-opacity hover:opacity-100">
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center"
+          style={{ background: 'rgba(79,99,247,0.1)' }}
+        >
+          <LayoutDashboard size={14} style={{ color: 'var(--brand)' }} />
+        </div>
+        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[var(--bg-glass)] text-[var(--text-muted)]">
+          Arquivado
+        </span>
+      </div>
+      <div className="relative">
+        <ArchivedItemMenu onAction={onAction} confirmLabel="Excluir dashboard?" />
       </div>
     </div>
     <h3 className="font-display font-semibold text-sm text-[var(--text-primary)]">
@@ -193,6 +337,38 @@ const PresentationCard = ({ presentation, onOpen, onAction }: PresentationCardPr
   </div>
 )
 
+interface ArchivedPresentationCardProps {
+  presentation: SlidePresentation
+  onAction: (action: ArchivedItemAction) => void
+}
+
+const ArchivedPresentationCard = ({ presentation, onAction }: ArchivedPresentationCardProps) => (
+  <div className="group relative text-left p-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] opacity-60 transition-opacity hover:opacity-100">
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-purple-500/10">
+          <Presentation size={14} className="text-purple-500" />
+        </div>
+        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[var(--bg-glass)] text-[var(--text-muted)]">
+          Arquivado
+        </span>
+      </div>
+      <div className="relative">
+        <ArchivedItemMenu onAction={onAction} confirmLabel="Excluir apresentação?" />
+      </div>
+    </div>
+    <h3 className="font-display font-semibold text-sm text-[var(--text-primary)]">
+      {presentation.name}
+    </h3>
+    {presentation.description && (
+      <p className="text-xs text-[var(--text-muted)] mt-1 truncate">{presentation.description}</p>
+    )}
+    <p className="text-xs text-[var(--text-muted)] mt-2">
+      Atualizado {new Date(presentation.updatedAt).toLocaleDateString('pt-BR')}
+    </p>
+  </div>
+)
+
 export function ClientDetailPage() {
   const {
     activeClientId,
@@ -207,9 +383,11 @@ export function ClientDetailPage() {
     setActiveApp,
     deleteDashboard,
     archiveDashboard,
+    unarchiveDashboard,
     duplicateDashboard,
     deletePresentation,
     archivePresentation,
+    unarchivePresentation,
     duplicatePresentation,
   } = useAppStore()
 
@@ -217,6 +395,7 @@ export function ClientDetailPage() {
   const [isCreatingPresentation, setIsCreatingPresentation] = useState(false)
   const [dashboardName, setDashboardName] = useState('')
   const [presentationName, setPresentationName] = useState('')
+  const [archivedExpanded, setArchivedExpanded] = useState(true)
 
   const client = clients.find((c) => c.id === activeClientId)
   if (!client) return null
@@ -227,6 +406,9 @@ export function ClientDetailPage() {
 
   const clientDashboards = dashboards.filter((d) => d.clientId === client.id && !d.archived)
   const clientPresentations = presentations.filter((p) => p.clientId === client.id && !p.archived)
+  const archivedDashboards = dashboards.filter((d) => d.clientId === client.id && d.archived === true)
+  const archivedPresentations = presentations.filter((p) => p.clientId === client.id && p.archived === true)
+  const hasArchived = archivedDashboards.length > 0 || archivedPresentations.length > 0
 
   const handleCreateDashboard = () => {
     if (!dashboardName.trim()) return
@@ -262,6 +444,16 @@ export function ClientDetailPage() {
     if (action === 'delete') deletePresentation(id)
     if (action === 'archive') archivePresentation(id)
     if (action === 'duplicate') duplicatePresentation(id)
+  }
+
+  const handleArchivedDashboardAction = (id: string, action: ArchivedItemAction) => {
+    if (action === 'restore') unarchiveDashboard(id)
+    if (action === 'delete') deleteDashboard(id)
+  }
+
+  const handleArchivedPresentationAction = (id: string, action: ArchivedItemAction) => {
+    if (action === 'restore') unarchivePresentation(id)
+    if (action === 'delete') deletePresentation(id)
   }
 
   return (
@@ -346,7 +538,7 @@ export function ClientDetailPage() {
       </section>
 
       {/* Presentations Section */}
-      <section>
+      <section className="mb-10">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display font-semibold text-base text-[var(--text-primary)] flex items-center gap-2">
             <Presentation size={17} className="text-purple-500" />
@@ -401,6 +593,65 @@ export function ClientDetailPage() {
           </div>
         )}
       </section>
+
+      {/* Archived Section */}
+      {hasArchived && (
+        <section>
+          <div className="border-t border-[var(--border)] pt-8">
+            <button
+              onClick={() => setArchivedExpanded((prev) => !prev)}
+              className="flex items-center gap-2 mb-4 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+            >
+              {archivedExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+              <Archive size={15} />
+              <span className="font-display font-semibold text-sm">Projetos Arquivados</span>
+              <span className="text-xs px-1.5 py-0.5 rounded-md bg-[var(--bg-glass)]">
+                {archivedDashboards.length + archivedPresentations.length}
+              </span>
+            </button>
+
+            {archivedExpanded && (
+              <div className="space-y-6">
+                {archivedDashboards.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-[var(--text-muted)] flex items-center gap-1.5 mb-3">
+                      <LayoutDashboard size={12} />
+                      Dashboards
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {archivedDashboards.map((dashboard) => (
+                        <ArchivedDashboardCard
+                          key={dashboard.id}
+                          dashboard={dashboard}
+                          onAction={(action) => handleArchivedDashboardAction(dashboard.id, action)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {archivedPresentations.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-[var(--text-muted)] flex items-center gap-1.5 mb-3">
+                      <Presentation size={12} />
+                      Apresentações
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {archivedPresentations.map((presentation) => (
+                        <ArchivedPresentationCard
+                          key={presentation.id}
+                          presentation={presentation}
+                          onAction={(action) => handleArchivedPresentationAction(presentation.id, action)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   )
 }
