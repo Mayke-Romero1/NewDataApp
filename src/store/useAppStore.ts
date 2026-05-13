@@ -13,6 +13,7 @@ interface AppState {
   setActiveClient: (id: string | null) => void
   createClient: (name: string) => Client
   deleteClient: (id: string) => void
+  archiveClient: (id: string) => void
 
   // Dashboards
   dashboards: Dashboard[]
@@ -20,12 +21,17 @@ interface AppState {
   setActiveDashboard: (id: string) => void
   createDashboard: (name: string, clientId?: string) => Dashboard
   deleteDashboard: (id: string) => void
+  archiveDashboard: (id: string) => void
+  duplicateDashboard: (id: string) => void
 
   // Presentations
   presentations: SlidePresentation[]
   activePresentationId: string | null
   setActivePresentation: (id: string) => void
   createPresentation: (name: string, clientId?: string) => SlidePresentation
+  deletePresentation: (id: string) => void
+  archivePresentation: (id: string) => void
+  duplicatePresentation: (id: string) => void
 
   // UI State
   sidebarCollapsed: boolean
@@ -54,6 +60,11 @@ export const useAppStore = create<AppState>((set) => ({
   deleteClient: (id) =>
     set((state) => ({
       clients: state.clients.filter((c) => c.id !== id),
+      activeClientId: state.activeClientId === id ? null : state.activeClientId,
+    })),
+  archiveClient: (id) =>
+    set((state) => ({
+      clients: state.clients.map((c) => (c.id === id ? { ...c, archived: true } : c)),
       activeClientId: state.activeClientId === id ? null : state.activeClientId,
     })),
 
@@ -86,6 +97,24 @@ export const useAppStore = create<AppState>((set) => ({
           ? state.dashboards[0]?.id ?? null
           : state.activeDashboardId,
     })),
+  archiveDashboard: (id) =>
+    set((state) => ({
+      dashboards: state.dashboards.map((d) => (d.id === id ? { ...d, archived: true } : d)),
+    })),
+  duplicateDashboard: (id) =>
+    set((state) => {
+      const original = state.dashboards.find((d) => d.id === id)
+      if (!original) return state
+      const copy: Dashboard = {
+        ...original,
+        id: `dash-${Date.now()}`,
+        name: `Cópia de ${original.name}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        archived: false,
+      }
+      return { dashboards: [...state.dashboards, copy] }
+    }),
 
   presentations: MOCK_PRESENTATIONS,
   activePresentationId: MOCK_PRESENTATIONS[0]?.id ?? null,
@@ -116,6 +145,33 @@ export const useAppStore = create<AppState>((set) => ({
     }))
     return newPres
   },
+
+  deletePresentation: (id) =>
+    set((state) => ({
+      presentations: state.presentations.filter((p) => p.id !== id),
+      activePresentationId:
+        state.activePresentationId === id
+          ? state.presentations[0]?.id ?? null
+          : state.activePresentationId,
+    })),
+  archivePresentation: (id) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) => (p.id === id ? { ...p, archived: true } : p)),
+    })),
+  duplicatePresentation: (id) =>
+    set((state) => {
+      const original = state.presentations.find((p) => p.id === id)
+      if (!original) return state
+      const copy: SlidePresentation = {
+        ...original,
+        id: `pres-${Date.now()}`,
+        name: `Cópia de ${original.name}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        archived: false,
+      }
+      return { presentations: [...state.presentations, copy] }
+    }),
 
   sidebarCollapsed: false,
   toggleSidebar: () =>

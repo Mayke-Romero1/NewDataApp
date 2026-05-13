@@ -6,6 +6,7 @@ const APP_TITLES = {
   slides: 'Editor de Slides',
   integrations: 'Integrações',
   settings: 'Configurações',
+  clients: 'Clientes',
 }
 
 export function Header() {

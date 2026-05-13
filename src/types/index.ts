@@ -76,11 +76,12 @@ export interface Dashboard {
   name: string
   description?: string
   widgets: Widget[]
-  integrations: string[] // integration ids used
+  integrations: string[]
   createdAt: Date
   updatedAt: Date
   isPublic: boolean
   tags: string[]
+  archived?: boolean
 }
 
 // ─── Slides ───────────────────────────────────────────────────────────────────
@@ -127,6 +128,7 @@ export interface SlidePresentation {
   createdAt: Date
   updatedAt: Date
   tags: string[]
+  archived?: boolean
 }
 
 export interface SlideTheme {
@@ -146,6 +148,7 @@ export interface Client {
   name: string
   createdAt: Date
   updatedAt: Date
+  archived?: boolean
 }
 
 // ─── Workspace ────────────────────────────────────────────────────────────────
