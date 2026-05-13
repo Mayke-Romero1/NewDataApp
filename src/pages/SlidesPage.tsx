@@ -50,7 +50,7 @@ const buildDefaultElement = (type: SlideElementType, zIndex: number): SlideEleme
         ...base, type,
         x: 64, y: 64, width: 1152, height: 592,
         style: {},
-        dataBinding: { source: 'ga4', metric: 'sessions', chartType: 'area' },
+        dataBinding: { source: 'demo', metric: 'sessions', chartType: 'area' },
       }
     case 'kpi':
       return {

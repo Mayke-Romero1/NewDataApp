@@ -195,7 +195,7 @@ const SLIDE_2_ELEMENTS: SlideElement[] = [
     x: 64, y: 130, width: 1152, height: 544,
     rotation: 0, opacity: 1, zIndex: 3, visibility: true, locked: false,
     style: {},
-    dataBinding: { source: 'ga4', metric: 'sessions', chartType: 'area' },
+    dataBinding: { source: 'demo', metric: 'sessions', chartType: 'area' },
   },
 ]
 

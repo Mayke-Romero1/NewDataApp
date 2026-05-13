@@ -110,10 +110,13 @@ export interface SlideElementStyle {
 }
 
 export interface SlideDataBinding {
-  source?: string
+  source?: 'demo' | 'spreadsheet'
   metric?: string
   dateRange?: string
-  chartType?: 'area' | 'bar' | 'line'
+  chartType?: 'area' | 'bar' | 'line' | 'bar_horizontal' | 'pie' | 'donut' | 'scatter'
+  customData?: Record<string, unknown>[]
+  xKey?: string
+  yKey?: string
 }
 
 export interface SlideElement {

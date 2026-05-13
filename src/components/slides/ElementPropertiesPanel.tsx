@@ -1,8 +1,9 @@
 import {
   BringToFront, SendToBack, Lock, Unlock, Eye, EyeOff,
   AlignLeft, AlignCenter, AlignRight, Bold, Italic, Trash2,
+  Upload, X,
 } from 'lucide-react'
-import type { SlideElement } from '@/types'
+import type { SlideElement, SlideDataBinding } from '@/types'
 import { cn } from '@/lib/utils'
 
 interface ElementPropertiesPanelProps {
@@ -17,17 +18,9 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
 )
 
 const NumInput = ({
-  label,
-  value,
-  onChange,
-  min,
-  max,
+  label, value, onChange, min, max,
 }: {
-  label: string
-  value: number
-  onChange: (v: number) => void
-  min?: number
-  max?: number
+  label: string; value: number; onChange: (v: number) => void; min?: number; max?: number
 }) => (
   <div>
     <label className="text-[10px] text-[var(--text-muted)] block mb-1">{label}</label>
@@ -42,6 +35,47 @@ const NumInput = ({
   </div>
 )
 
+const SourceToggle = ({
+  value, onChange,
+}: { value: 'demo' | 'spreadsheet'; onChange: (v: 'demo' | 'spreadsheet') => void }) => (
+  <div className="flex gap-1">
+    {(['demo', 'spreadsheet'] as const).map((s) => (
+      <button
+        key={s}
+        onClick={() => onChange(s)}
+        className={cn(
+          'flex-1 h-7 text-[10px] rounded border transition-colors',
+          value === s
+            ? 'bg-[rgba(79,99,247,0.2)] border-brand-500 text-[#748bff]'
+            : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[rgba(255,255,255,0.2)]'
+        )}
+      >
+        {s === 'demo' ? 'Demo' : 'Planilha'}
+      </button>
+    ))}
+  </div>
+)
+
+const parseCSV = (text: string): Record<string, unknown>[] => {
+  const lines = text.trim().split(/\r?\n/)
+  if (lines.length < 2) return []
+  const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''))
+  return lines.slice(1).map((line) => {
+    const values = line.split(',').map((v) => v.trim().replace(/^"|"$/g, ''))
+    return Object.fromEntries(headers.map((h, i) => [h, values[i] ?? '']))
+  })
+}
+
+const CHART_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'area', label: 'Área' },
+  { value: 'bar', label: 'Barras verticais' },
+  { value: 'line', label: 'Linha' },
+  { value: 'bar_horizontal', label: 'Barras horizontais' },
+  { value: 'pie', label: 'Pizza' },
+  { value: 'donut', label: 'Rosca (Donut)' },
+  { value: 'scatter', label: 'Dispersão' },
+]
+
 export const ElementPropertiesPanel = ({
   element,
   onUpdate,
@@ -49,6 +83,43 @@ export const ElementPropertiesPanel = ({
   onReorder,
 }: ElementPropertiesPanelProps) => {
   const { style, dataBinding } = element
+  const db = dataBinding ?? {} as SlideDataBinding
+  const source = db.source ?? 'demo'
+  const customData = db.customData ?? []
+  const columns = customData.length > 0 ? Object.keys(customData[0]) : []
+
+  const updateBinding = (patch: Partial<SlideDataBinding>) =>
+    onUpdate({ dataBinding: { ...db, ...patch } })
+
+  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const parsed = parseCSV((ev.target?.result as string) ?? '')
+      if (parsed.length === 0) return
+      const cols = Object.keys(parsed[0])
+      updateBinding({
+        source: 'spreadsheet',
+        customData: parsed,
+        xKey: cols[0],
+        yKey: cols[1] ?? cols[0],
+      })
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      onUpdate({ content: ev.target?.result as string })
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
 
   return (
     <div className="space-y-5">
@@ -85,18 +156,10 @@ export const ElementPropertiesPanel = ({
       <div>
         <SectionLabel>Camadas</SectionLabel>
         <div className="grid grid-cols-2 gap-1.5">
-          <button
-            onClick={() => onReorder('front')}
-            className="btn-secondary text-xs h-7 py-0 px-2 gap-1.5"
-            title="Trazer à frente"
-          >
+          <button onClick={() => onReorder('front')} className="btn-secondary text-xs h-7 py-0 px-2 gap-1.5" title="Trazer à frente">
             <BringToFront size={12} /> Frente
           </button>
-          <button
-            onClick={() => onReorder('back')}
-            className="btn-secondary text-xs h-7 py-0 px-2 gap-1.5"
-            title="Enviar para trás"
-          >
+          <button onClick={() => onReorder('back')} className="btn-secondary text-xs h-7 py-0 px-2 gap-1.5" title="Enviar para trás">
             <SendToBack size={12} /> Fundo
           </button>
           <button
@@ -199,21 +262,87 @@ export const ElementPropertiesPanel = ({
         </div>
       )}
 
+      {element.type === 'image' && (
+        <div>
+          <SectionLabel>Imagem</SectionLabel>
+          <div className="space-y-2">
+            {element.content && (
+              <div className="relative rounded-lg overflow-hidden border border-[var(--border)]" style={{ height: 72 }}>
+                <img src={element.content} alt="" className="w-full h-full object-cover" />
+                <button
+                  onClick={() => onUpdate({ content: undefined })}
+                  className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded bg-black/60 hover:bg-black/80 text-white transition-colors"
+                  title="Remover imagem"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            )}
+            <label className="btn-secondary text-xs h-8 py-0 w-full cursor-pointer flex items-center justify-center gap-1.5">
+              <Upload size={12} />
+              {element.content ? 'Trocar imagem' : 'Escolher imagem'}
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+            </label>
+          </div>
+        </div>
+      )}
+
       {element.type === 'kpi' && (
         <div>
           <SectionLabel>KPI</SectionLabel>
-          <div>
-            <label className="text-[10px] text-[var(--text-muted)] block mb-1">Métrica</label>
-            <select
-              className="input text-xs py-1.5 h-8"
-              value={dataBinding?.metric ?? 'sessions'}
-              onChange={(e) => onUpdate({ dataBinding: { ...dataBinding, metric: e.target.value } })}
-            >
-              <option value="sessions">Sessões</option>
-              <option value="conversions">Conversões</option>
-              <option value="cost">Custo Total Ads</option>
-              <option value="roas">ROAS Médio</option>
-            </select>
+          <div className="space-y-2">
+            <div>
+              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Fonte de dados</label>
+              <SourceToggle value={source} onChange={(s) => updateBinding({ source: s })} />
+            </div>
+
+            {source !== 'spreadsheet' ? (
+              <div>
+                <label className="text-[10px] text-[var(--text-muted)] block mb-1">Métrica</label>
+                <select
+                  className="input text-xs py-1.5 h-8"
+                  value={db.metric ?? 'sessions'}
+                  onChange={(e) => updateBinding({ metric: e.target.value })}
+                >
+                  <option value="sessions">Sessões</option>
+                  <option value="conversions">Conversões</option>
+                  <option value="cost">Custo Total Ads</option>
+                  <option value="roas">ROAS Médio</option>
+                </select>
+              </div>
+            ) : (
+              <>
+                <label className="btn-secondary text-xs h-8 py-0 w-full cursor-pointer flex items-center justify-center gap-1.5">
+                  <Upload size={12} />
+                  {customData.length > 0 ? `${customData.length} linhas importadas` : 'Importar CSV'}
+                  <input type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
+                </label>
+                {columns.length > 0 && (
+                  <>
+                    <div>
+                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna do rótulo</label>
+                      <select
+                        className="input text-xs py-1.5 h-8"
+                        value={db.xKey ?? columns[0]}
+                        onChange={(e) => updateBinding({ xKey: e.target.value })}
+                      >
+                        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna do valor</label>
+                      <select
+                        className="input text-xs py-1.5 h-8"
+                        value={db.yKey ?? columns[1] ?? columns[0]}
+                        onChange={(e) => updateBinding({ yKey: e.target.value })}
+                      >
+                        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
@@ -226,26 +355,70 @@ export const ElementPropertiesPanel = ({
               <label className="text-[10px] text-[var(--text-muted)] block mb-1">Tipo</label>
               <select
                 className="input text-xs py-1.5 h-8"
-                value={dataBinding?.chartType ?? 'area'}
-                onChange={(e) => onUpdate({ dataBinding: { ...dataBinding, chartType: e.target.value as 'area' | 'bar' | 'line' } })}
+                value={db.chartType ?? 'area'}
+                onChange={(e) => updateBinding({ chartType: e.target.value as SlideDataBinding['chartType'] })}
               >
-                <option value="area">Área</option>
-                <option value="bar">Barras</option>
-                <option value="line">Linha</option>
+                {CHART_TYPE_OPTIONS.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
               </select>
             </div>
+
             <div>
-              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Período</label>
-              <select
-                className="input text-xs py-1.5 h-8"
-                value={dataBinding?.dateRange ?? 'last_30d'}
-                onChange={(e) => onUpdate({ dataBinding: { ...dataBinding, dateRange: e.target.value } })}
-              >
-                <option value="last_7d">Últimos 7 dias</option>
-                <option value="last_30d">Últimos 30 dias</option>
-                <option value="last_90d">Últimos 90 dias</option>
-              </select>
+              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Fonte de dados</label>
+              <SourceToggle value={source} onChange={(s) => updateBinding({ source: s })} />
             </div>
+
+            {source !== 'spreadsheet' ? (
+              <div>
+                <label className="text-[10px] text-[var(--text-muted)] block mb-1">Período</label>
+                <select
+                  className="input text-xs py-1.5 h-8"
+                  value={db.dateRange ?? 'last_30d'}
+                  onChange={(e) => updateBinding({ dateRange: e.target.value })}
+                >
+                  <option value="last_7d">Últimos 7 dias</option>
+                  <option value="last_30d">Últimos 30 dias</option>
+                  <option value="last_90d">Últimos 90 dias</option>
+                </select>
+              </div>
+            ) : (
+              <>
+                <label className="btn-secondary text-xs h-8 py-0 w-full cursor-pointer flex items-center justify-center gap-1.5">
+                  <Upload size={12} />
+                  {customData.length > 0 ? `${customData.length} linhas importadas` : 'Importar CSV'}
+                  <input type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
+                </label>
+                {columns.length > 0 && (
+                  <>
+                    <div>
+                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">
+                        {db.chartType === 'pie' || db.chartType === 'donut' ? 'Coluna de rótulos' : 'Coluna X'}
+                      </label>
+                      <select
+                        className="input text-xs py-1.5 h-8"
+                        value={db.xKey ?? columns[0]}
+                        onChange={(e) => updateBinding({ xKey: e.target.value })}
+                      >
+                        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">
+                        {db.chartType === 'pie' || db.chartType === 'donut' ? 'Coluna de valores' : 'Coluna Y'}
+                      </label>
+                      <select
+                        className="input text-xs py-1.5 h-8"
+                        value={db.yKey ?? columns[1] ?? columns[0]}
+                        onChange={(e) => updateBinding({ yKey: e.target.value })}
+                      >
+                        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
