@@ -1,14 +1,18 @@
 import {
-  Download, Share2, Play,
+  Download, Share2, Play, X, ChevronLeft, ChevronRight,
   Type, Image, BarChart2, Layers,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 import { formatRelativeTime } from '@/lib/utils'
 import type { Slide, SlideElement, SlideElementType } from '@/types'
 import { SlideCanvas } from '@/components/slides/SlideCanvas'
 import { SlideThumbnailStrip } from '@/components/slides/SlideThumbnailStrip'
 import { SlideEditorPanel } from '@/components/slides/SlideEditorPanel'
+import { SlideElementRenderer } from '@/components/slides/SlideElementRenderer'
+
+const CANVAS_W = 1280
+const CANVAS_H = 720
 
 const ELEMENT_TOOLS: { icon: React.ElementType; label: string; type: SlideElementType }[] = [
   { icon: Type, label: 'Texto', type: 'text' },
@@ -70,6 +74,177 @@ const buildDefaultElement = (type: SlideElementType, zIndex: number): SlideEleme
   }
 }
 
+interface PresentationOverlayProps {
+  slides: Slide[]
+  initialIndex: number
+  onClose: () => void
+}
+
+const PresentationOverlay = ({ slides, initialIndex, onClose }: PresentationOverlayProps) => {
+  const [index, setIndex] = useState(initialIndex)
+  const slide = slides[index]
+
+  const goNext = () => setIndex((i) => Math.min(i + 1, slides.length - 1))
+  const goPrev = () => setIndex((i) => Math.max(i - 1, 0))
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goNext()
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') goPrev()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const scale = Math.min(window.innerWidth / CANVAS_W, window.innerHeight / CANVAS_H)
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        background: '#000',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div
+        style={{
+          width: CANVAS_W * scale,
+          height: CANVAS_H * scale,
+          position: 'relative',
+          flexShrink: 0,
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            width: CANVAS_W,
+            height: CANVAS_H,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            background: slide.background,
+          }}
+        >
+          {[...slide.elements]
+            .filter((el) => el.visibility)
+            .sort((a, b) => a.zIndex - b.zIndex)
+            .map((el) => (
+              <div
+                key={el.id}
+                style={{
+                  position: 'absolute',
+                  left: el.x,
+                  top: el.y,
+                  width: el.width,
+                  height: el.height,
+                  transform: `rotate(${el.rotation}deg)`,
+                  opacity: el.opacity,
+                }}
+              >
+                <SlideElementRenderer element={el} />
+              </div>
+            ))}
+        </div>
+      </div>
+
+      <button
+        onClick={onClose}
+        title="Fechar (Esc)"
+        style={{
+          position: 'fixed',
+          top: 16,
+          right: 20,
+          width: 36,
+          height: 36,
+          borderRadius: 8,
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          color: '#fff',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <X size={16} />
+      </button>
+
+      <button
+        onClick={goPrev}
+        disabled={index === 0}
+        title="Slide anterior (←)"
+        style={{
+          position: 'fixed',
+          left: 16,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 40,
+          height: 40,
+          borderRadius: 8,
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          color: index === 0 ? 'rgba(255,255,255,0.25)' : '#fff',
+          cursor: index === 0 ? 'default' : 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <ChevronLeft size={20} />
+      </button>
+
+      <button
+        onClick={goNext}
+        disabled={index === slides.length - 1}
+        title="Próximo slide (→)"
+        style={{
+          position: 'fixed',
+          right: 16,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 40,
+          height: 40,
+          borderRadius: 8,
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          color: index === slides.length - 1 ? 'rgba(255,255,255,0.25)' : '#fff',
+          cursor: index === slides.length - 1 ? 'default' : 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <ChevronRight size={20} />
+      </button>
+
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          borderRadius: 6,
+          padding: '4px 12px',
+          color: 'rgba(255,255,255,0.7)',
+          fontSize: 12,
+          fontFamily: 'DM Sans, sans-serif',
+        }}
+      >
+        {index + 1} / {slides.length}
+      </div>
+    </div>
+  )
+}
+
 export const SlidesPage = () => {
   const {
     presentations,
@@ -84,6 +259,9 @@ export const SlidesPage = () => {
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
+  const [isThumbnailCollapsed, setIsThumbnailCollapsed] = useState(false)
+  const [isEditorCollapsed, setIsEditorCollapsed] = useState(false)
+  const [isPresentMode, setIsPresentMode] = useState(false)
 
   const activePresentation = presentations.find((p) => p.id === activePresentationId) ?? presentations[0]
   const activeSlide = activePresentation?.slides[activeSlideIndex] ?? activePresentation?.slides[0]
@@ -154,6 +332,14 @@ export const SlidesPage = () => {
       tabIndex={-1}
       onKeyDown={handleKeyDown}
     >
+      {isPresentMode && (
+        <PresentationOverlay
+          slides={activePresentation.slides}
+          initialIndex={activeSlideIndex}
+          onClose={() => setIsPresentMode(false)}
+        />
+      )}
+
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="h-12 border-b border-[var(--border)] flex items-center px-4 gap-3 flex-shrink-0">
           <div className="flex items-center gap-1">
@@ -185,7 +371,10 @@ export const SlidesPage = () => {
             <button className="btn-secondary text-xs h-8 py-0">
               <Download size={13} /> Exportar
             </button>
-            <button className="btn-primary text-xs h-8 py-0">
+            <button
+              onClick={() => setIsPresentMode(true)}
+              className="btn-primary text-xs h-8 py-0"
+            >
               <Play size={13} /> Apresentar
             </button>
           </div>
@@ -195,8 +384,10 @@ export const SlidesPage = () => {
           <SlideThumbnailStrip
             slides={activePresentation.slides}
             activeSlideIndex={activeSlideIndex}
+            isCollapsed={isThumbnailCollapsed}
             onSelectSlide={handleSelectSlide}
             onAddSlide={handleAddSlide}
+            onToggleCollapse={() => setIsThumbnailCollapsed((v) => !v)}
           />
 
           <SlideCanvas
@@ -211,10 +402,12 @@ export const SlidesPage = () => {
             slideIndex={activeSlideIndex}
             slideCount={activePresentation.slides.length}
             selectedElementId={selectedElementId}
+            isCollapsed={isEditorCollapsed}
             onUpdateSlide={handleUpdateSlide}
             onUpdateElement={handleUpdateElement}
             onDeleteElement={handleDeleteElement}
             onReorderElement={handleReorderElement}
+            onToggleCollapse={() => setIsEditorCollapsed((v) => !v)}
           />
         </div>
       </div>
