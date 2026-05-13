@@ -1,16 +1,24 @@
-import { LayoutDashboard, Presentation, Plug, Settings, ChevronLeft, Plus, Zap } from 'lucide-react'
+import { LayoutDashboard, Presentation, Plug, Settings, ChevronLeft, Zap, Users } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import { cn } from '@/lib/utils'
 
-const NAV_ITEMS = [
-  { id: 'dashboard' as const, label: 'Dashboards', icon: LayoutDashboard },
-  { id: 'slides' as const, label: 'Slides', icon: Presentation },
-  { id: 'integrations' as const, label: 'Integrações', icon: Plug },
-  { id: 'settings' as const, label: 'Configurações', icon: Settings },
+type AppId = 'clients' | 'dashboard' | 'slides' | 'integrations' | 'settings'
+
+const NAV_ITEMS: { id: AppId; label: string; icon: React.ElementType }[] = [
+  { id: 'clients', label: 'Clientes', icon: Users },
+  { id: 'dashboard', label: 'Dashboards', icon: LayoutDashboard },
+  { id: 'slides', label: 'Slides', icon: Presentation },
+  { id: 'integrations', label: 'Integrações', icon: Plug },
+  { id: 'settings', label: 'Configurações', icon: Settings },
 ]
 
 export function Sidebar() {
-  const { sidebarCollapsed, toggleSidebar, activeApp, setActiveApp } = useAppStore()
+  const { sidebarCollapsed, toggleSidebar, activeApp, setActiveApp, setActiveClient } = useAppStore()
+
+  const handleNavClick = (id: AppId) => {
+    setActiveApp(id)
+    if (id === 'clients') setActiveClient(null)
+  }
 
   return (
     <aside
@@ -37,7 +45,7 @@ export function Sidebar() {
         {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => setActiveApp(id)}
+            onClick={() => handleNavClick(id)}
             className={cn(
               'sidebar-item w-full text-left',
               activeApp === id && 'active',

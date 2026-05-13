@@ -1,69 +1,8 @@
 import type {
-  Integration,
+  Client,
   Dashboard,
   SlidePresentation,
-  Widget,
 } from '@/types'
-
-// ─── Integrations ─────────────────────────────────────────────────────────────
-
-export const MOCK_INTEGRATIONS: Integration[] = [
-  {
-    id: 'int-1',
-    provider: 'google_analytics',
-    name: 'Google Analytics 4',
-    status: 'connected',
-    lastSync: new Date(Date.now() - 1000 * 60 * 15),
-    accountName: 'Meu Site — GA4',
-  },
-  {
-    id: 'int-2',
-    provider: 'google_ads',
-    name: 'Google Ads',
-    status: 'connected',
-    lastSync: new Date(Date.now() - 1000 * 60 * 30),
-    accountName: 'Conta Principal',
-  },
-  {
-    id: 'int-3',
-    provider: 'meta_ads',
-    name: 'Meta Ads',
-    status: 'connected',
-    lastSync: new Date(Date.now() - 1000 * 60 * 45),
-    accountName: 'Meta Business Suite',
-  },
-  {
-    id: 'int-4',
-    provider: 'tiktok_ads',
-    name: 'TikTok Ads',
-    status: 'disconnected',
-    accountName: undefined,
-  },
-  {
-    id: 'int-5',
-    provider: 'linkedin_ads',
-    name: 'LinkedIn Ads',
-    status: 'error',
-    lastSync: new Date(Date.now() - 1000 * 60 * 60 * 3),
-    accountName: 'LinkedIn Campaign Manager',
-  },
-  {
-    id: 'int-6',
-    provider: 'search_console',
-    name: 'Search Console',
-    status: 'connected',
-    lastSync: new Date(Date.now() - 1000 * 60 * 60),
-    accountName: 'meusite.com.br',
-  },
-  {
-    id: 'int-7',
-    provider: 'google_sheets',
-    name: 'Google Sheets',
-    status: 'connected',
-    lastSync: new Date(Date.now() - 1000 * 60 * 5),
-    accountName: 'Planilhas conectadas',
-  },
-]
 
 // ─── Chart Data ───────────────────────────────────────────────────────────────
 
@@ -114,11 +53,35 @@ export const KPI_METRICS = [
   { label: 'ROAS Médio', value: '2.87×', change: 5.6, changeDirection: 'up' as const, icon: 'trending-up', color: '#748bff' },
 ]
 
+// ─── Clients ──────────────────────────────────────────────────────────────────
+
+export const MOCK_CLIENTS: Client[] = [
+  {
+    id: 'client-1',
+    name: 'Coca-Cola',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2),
+  },
+  {
+    id: 'client-2',
+    name: 'Nike',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 20),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5),
+  },
+  {
+    id: 'client-3',
+    name: 'Magazine Luiza',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1),
+  },
+]
+
 // ─── Dashboards ───────────────────────────────────────────────────────────────
 
 export const MOCK_DASHBOARDS: Dashboard[] = [
   {
     id: 'dash-1',
+    clientId: 'client-1',
     name: 'Performance de Marketing',
     description: 'Visão consolidada de todas as campanhas',
     widgets: [],
@@ -130,6 +93,7 @@ export const MOCK_DASHBOARDS: Dashboard[] = [
   },
   {
     id: 'dash-2',
+    clientId: 'client-2',
     name: 'SEO & Conteúdo',
     description: 'Tráfego orgânico e posicionamento',
     widgets: [],
@@ -141,6 +105,7 @@ export const MOCK_DASHBOARDS: Dashboard[] = [
   },
   {
     id: 'dash-3',
+    clientId: 'client-3',
     name: 'Overview Executivo',
     description: 'KPIs principais para a diretoria',
     widgets: [],
@@ -157,6 +122,7 @@ export const MOCK_DASHBOARDS: Dashboard[] = [
 export const MOCK_PRESENTATIONS: SlidePresentation[] = [
   {
     id: 'pres-1',
+    clientId: 'client-1',
     name: 'Relatório Mensal — Maio 2025',
     description: 'Resultados de performance do mês',
     theme: {
@@ -176,6 +142,7 @@ export const MOCK_PRESENTATIONS: SlidePresentation[] = [
   },
   {
     id: 'pres-2',
+    clientId: 'client-3',
     name: 'Pitch de Resultados Q2',
     description: 'Apresentação para stakeholders',
     theme: {

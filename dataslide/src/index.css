@@ -4,17 +4,17 @@
 
 @layer base {
   :root {
-    --bg-primary: #0d0f1a;
-    --bg-secondary: #13162a;
-    --bg-tertiary: #1a1e35;
-    --bg-glass: rgba(255,255,255,0.04);
-    --border: rgba(255,255,255,0.08);
+    --bg-primary: #ffffff;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f5f7fa;
+    --bg-glass: rgba(0,0,0,0.03);
+    --border: rgba(0,0,0,0.09);
     --border-active: rgba(99,115,247,0.5);
-    --text-primary: #f0f2ff;
-    --text-secondary: #8b93c8;
-    --text-muted: #525878;
+    --text-primary: #0d0f1a;
+    --text-secondary: #525878;
+    --text-muted: #8b93c8;
     --brand: #4f63f7;
-    --brand-light: #748bff;
+    --brand-light: #3a46eb;
     --success: #22c55e;
     --warning: #f59e0b;
     --danger: #ef4444;
@@ -115,13 +115,13 @@
 
   .badge-success {
     background: rgba(34,197,94,0.12);
-    color: #4ade80;
+    color: #16a34a;
     border: 1px solid rgba(34,197,94,0.2);
   }
 
   .badge-warning {
     background: rgba(245,158,11,0.12);
-    color: #fbbf24;
+    color: #b45309;
     border: 1px solid rgba(245,158,11,0.2);
   }
 
@@ -188,8 +188,8 @@
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.32); }
 
 /* Selection */
 ::selection { background: rgba(79,99,247,0.3); color: white; }

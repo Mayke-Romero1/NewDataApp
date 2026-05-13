@@ -1,55 +1,70 @@
 import { create } from 'zustand'
-import type { Dashboard, Integration, SlidePresentation, Workspace } from '@/types'
-import { MOCK_INTEGRATIONS, MOCK_DASHBOARDS, MOCK_PRESENTATIONS } from '@/lib/mockData'
+import type { Client, Dashboard, SlidePresentation, Workspace } from '@/types'
+import { MOCK_CLIENTS, MOCK_DASHBOARDS, MOCK_PRESENTATIONS } from '@/lib/mockData'
 
 interface AppState {
   // Workspace
   workspace: Workspace | null
   setWorkspace: (ws: Workspace) => void
 
-  // Integrations
-  integrations: Integration[]
-  updateIntegrationStatus: (id: string, status: Integration['status']) => void
+  // Clients
+  clients: Client[]
+  activeClientId: string | null
+  setActiveClient: (id: string | null) => void
+  createClient: (name: string) => Client
+  deleteClient: (id: string) => void
 
   // Dashboards
   dashboards: Dashboard[]
   activeDashboardId: string | null
   setActiveDashboard: (id: string) => void
-  createDashboard: (name: string) => Dashboard
+  createDashboard: (name: string, clientId?: string) => Dashboard
   deleteDashboard: (id: string) => void
 
   // Presentations
   presentations: SlidePresentation[]
   activePresentationId: string | null
   setActivePresentation: (id: string) => void
-  createPresentation: (name: string) => SlidePresentation
+  createPresentation: (name: string, clientId?: string) => SlidePresentation
 
   // UI State
   sidebarCollapsed: boolean
   toggleSidebar: () => void
-  activeApp: 'dashboard' | 'slides' | 'integrations' | 'settings'
+  activeApp: 'dashboard' | 'slides' | 'integrations' | 'settings' | 'clients'
   setActiveApp: (app: AppState['activeApp']) => void
 }
 
-export const useAppStore = create<AppState>((set, get) => ({
+export const useAppStore = create<AppState>((set) => ({
   workspace: null,
   setWorkspace: (ws) => set({ workspace: ws }),
 
-  integrations: MOCK_INTEGRATIONS,
-  updateIntegrationStatus: (id, status) =>
+  clients: MOCK_CLIENTS,
+  activeClientId: null,
+  setActiveClient: (id) => set({ activeClientId: id }),
+  createClient: (name) => {
+    const newClient: Client = {
+      id: `client-${Date.now()}`,
+      name,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+    set((state) => ({ clients: [...state.clients, newClient] }))
+    return newClient
+  },
+  deleteClient: (id) =>
     set((state) => ({
-      integrations: state.integrations.map((i) =>
-        i.id === id ? { ...i, status } : i
-      ),
+      clients: state.clients.filter((c) => c.id !== id),
+      activeClientId: state.activeClientId === id ? null : state.activeClientId,
     })),
 
   dashboards: MOCK_DASHBOARDS,
   activeDashboardId: MOCK_DASHBOARDS[0]?.id ?? null,
   setActiveDashboard: (id) => set({ activeDashboardId: id }),
-  createDashboard: (name) => {
+  createDashboard: (name, clientId) => {
     const newDashboard: Dashboard = {
       id: `dash-${Date.now()}`,
       name,
+      clientId,
       widgets: [],
       integrations: [],
       createdAt: new Date(),
@@ -75,10 +90,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   presentations: MOCK_PRESENTATIONS,
   activePresentationId: MOCK_PRESENTATIONS[0]?.id ?? null,
   setActivePresentation: (id) => set({ activePresentationId: id }),
-  createPresentation: (name) => {
+  createPresentation: (name, clientId) => {
     const newPres: SlidePresentation = {
       id: `pres-${Date.now()}`,
       name,
+      clientId,
       theme: {
         primary: '#4f63f7',
         secondary: '#748bff',

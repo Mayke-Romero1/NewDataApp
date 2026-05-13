@@ -1,8 +1,10 @@
 import {
-  CheckCircle2, XCircle, AlertCircle, RefreshCw, Plus, ExternalLink, Loader2
+  CheckCircle2, XCircle, AlertCircle, RefreshCw, Plus, ExternalLink, Loader2, LogOut
 } from 'lucide-react'
-import { useState } from 'react'
-import { useAppStore } from '@/store/useAppStore'
+import { useIntegrationsQuery } from '@/hooks/queries/useIntegrationsQuery'
+import { useConnectIntegrationMutation } from '@/hooks/mutations/useConnectIntegrationMutation'
+import { useSyncIntegrationMutation } from '@/hooks/mutations/useSyncIntegrationMutation'
+import { useDisconnectIntegrationMutation } from '@/hooks/mutations/useDisconnectIntegrationMutation'
 import { cn, PROVIDER_LABELS, PROVIDER_COLORS, formatRelativeTime } from '@/lib/utils'
 import type { Integration, IntegrationProvider } from '@/types'
 
@@ -63,24 +65,28 @@ function ProviderLogo({ provider }: { provider: IntegrationProvider }) {
 }
 
 export function IntegrationsPage() {
-  const { integrations, updateIntegrationStatus } = useAppStore()
-  const [syncing, setSyncing] = useState<string | null>(null)
-
-  const handleSync = (id: string) => {
-    setSyncing(id)
-    updateIntegrationStatus(id, 'syncing')
-    setTimeout(() => {
-      updateIntegrationStatus(id, 'connected')
-      setSyncing(null)
-    }, 2000)
-  }
-
-  const handleConnect = (id: string) => {
-    updateIntegrationStatus(id, 'syncing')
-    setTimeout(() => updateIntegrationStatus(id, 'connected'), 2500)
-  }
+  const { integrations, isLoading, isError } = useIntegrationsQuery()
+  const connectMutation = useConnectIntegrationMutation()
+  const syncMutation = useSyncIntegrationMutation()
+  const disconnectMutation = useDisconnectIntegrationMutation()
 
   const connectedCount = integrations.filter((i) => i.status === 'connected').length
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 size={24} className="animate-spin text-[var(--text-muted)]" />
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-sm text-red-400">Erro ao carregar integrações. Verifique a conexão com o servidor.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full">
@@ -114,15 +120,17 @@ export function IntegrationsPage() {
             </div>
           ))}
           <div className="flex-1" />
-          <div
-            className="h-2 rounded-full bg-[var(--bg-tertiary)] overflow-hidden"
-            style={{ width: 200 }}
-          >
+          {integrations.length > 0 && (
             <div
-              className="h-full rounded-full bg-green-500 transition-all"
-              style={{ width: `${(connectedCount / integrations.length) * 100}%` }}
-            />
-          </div>
+              className="h-2 rounded-full bg-[var(--bg-tertiary)] overflow-hidden"
+              style={{ width: 200 }}
+            >
+              <div
+                className="h-full rounded-full bg-green-500 transition-all"
+                style={{ width: `${(connectedCount / integrations.length) * 100}%` }}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -131,6 +139,10 @@ export function IntegrationsPage() {
         {PROVIDER_ORDER.map((provider) => {
           const integration = integrations.find((i) => i.provider === provider)
           if (!integration) return null
+
+          const isSyncing = syncMutation.isPending && syncMutation.variables === integration.id
+          const isDisconnecting = disconnectMutation.isPending && disconnectMutation.variables === integration.id
+          const isConnecting = connectMutation.isPending && connectMutation.variables === provider
 
           return (
             <div
@@ -167,37 +179,58 @@ export function IntegrationsPage() {
 
               <div className="flex items-center gap-2 flex-shrink-0">
                 {integration.status === 'connected' && (
-                  <button
-                    className="btn-secondary text-xs h-8 py-0"
-                    onClick={() => handleSync(integration.id)}
-                    disabled={syncing === integration.id}
-                  >
-                    <RefreshCw size={13} className={syncing === integration.id ? 'animate-spin' : ''} />
-                    Sincronizar
-                  </button>
+                  <>
+                    <button
+                      className="btn-secondary text-xs h-8 py-0"
+                      onClick={() => syncMutation.mutate(integration.id)}
+                      disabled={isSyncing}
+                    >
+                      <RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
+                      Sincronizar
+                    </button>
+                    <button
+                      className="text-xs h-8 py-0 px-3 rounded-lg bg-[var(--bg-glass)] text-[var(--text-muted)] border border-[var(--border)] hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-colors flex items-center gap-1.5"
+                      onClick={() => disconnectMutation.mutate(integration.id)}
+                      disabled={isDisconnecting}
+                    >
+                      {isDisconnecting
+                        ? <Loader2 size={13} className="animate-spin" />
+                        : <LogOut size={13} />
+                      }
+                      Desconectar
+                    </button>
+                  </>
                 )}
                 {integration.status === 'error' && (
                   <button
                     className="text-xs h-8 py-0 px-3 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center gap-1.5"
-                    onClick={() => handleConnect(integration.id)}
+                    onClick={() => connectMutation.mutate(provider)}
+                    disabled={isConnecting}
                   >
-                    <RefreshCw size={13} />
+                    {isConnecting
+                      ? <Loader2 size={13} className="animate-spin" />
+                      : <RefreshCw size={13} />
+                    }
                     Reconectar
                   </button>
                 )}
                 {integration.status === 'disconnected' && (
                   <button
                     className="btn-primary text-xs h-8 py-0"
-                    onClick={() => handleConnect(integration.id)}
+                    onClick={() => connectMutation.mutate(provider)}
+                    disabled={isConnecting}
                   >
-                    <Plus size={13} />
+                    {isConnecting
+                      ? <Loader2 size={13} className="animate-spin" />
+                      : <Plus size={13} />
+                    }
                     Conectar
                   </button>
                 )}
                 {integration.status === 'syncing' && (
                   <span className="text-xs text-[var(--text-muted)] flex items-center gap-1.5">
                     <Loader2 size={13} className="animate-spin" />
-                    Conectando...
+                    Sincronizando...
                   </span>
                 )}
                 <button className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">

@@ -1,3 +1,9 @@
+// ─── API ──────────────────────────────────────────────────────────────────────
+
+export interface ApiError extends Error {
+  status: number
+}
+
 // ─── Integrations ─────────────────────────────────────────────────────────────
 
 export type IntegrationProvider =
@@ -66,6 +72,7 @@ export interface Widget {
 
 export interface Dashboard {
   id: string
+  clientId?: string
   name: string
   description?: string
   widgets: Widget[]
@@ -111,6 +118,7 @@ export interface Slide {
 
 export interface SlidePresentation {
   id: string
+  clientId?: string
   name: string
   description?: string
   theme: SlideTheme
@@ -129,6 +137,15 @@ export interface SlideTheme {
   accent: string
   fontDisplay: string
   fontBody: string
+}
+
+// ─── Client ───────────────────────────────────────────────────────────────────
+
+export interface Client {
+  id: string
+  name: string
+  createdAt: Date
+  updatedAt: Date
 }
 
 // ─── Workspace ────────────────────────────────────────────────────────────────

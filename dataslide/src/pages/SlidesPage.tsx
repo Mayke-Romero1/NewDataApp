@@ -1,6 +1,6 @@
 import {
   Plus, Presentation, Download, Share2, Play,
-  Type, Image, BarChart2, Layers, ChevronRight,
+  Type, Image, BarChart2, Layers,
   AlignLeft, Bold, Italic, Link
 } from 'lucide-react'
 import { useState } from 'react'
@@ -25,7 +25,7 @@ const ELEMENT_TOOLS = [
   { icon: Layers, label: 'Shape' },
 ]
 
-function MockSlideCanvas({ index, active }: { index: number; active: boolean }) {
+function MockSlideCanvas({ index }: { index: number; active?: boolean }) {
   const slides = [
     // Slide 1 — Title
     <div key={0} className="w-full h-full flex flex-col items-center justify-center gap-4 p-10">

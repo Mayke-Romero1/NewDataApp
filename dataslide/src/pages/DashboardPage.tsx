@@ -1,15 +1,14 @@
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart
 } from 'recharts'
 import {
-  Plus, TrendingUp, TrendingDown, Users, Target, CreditCard, LayoutDashboard, Share2, Download
+  Plus, TrendingUp, TrendingDown, LayoutDashboard, Share2, Download
 } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
-import { SESSIONS_DATA, AD_SPEND_DATA, CHANNEL_DATA, KPI_METRICS, MOCK_DASHBOARDS } from '@/lib/mockData'
+import { SESSIONS_DATA, AD_SPEND_DATA, CHANNEL_DATA, KPI_METRICS } from '@/lib/mockData'
 import { cn, formatRelativeTime } from '@/lib/utils'
 
-const CHART_COLORS = ['#4f63f7', '#748bff', '#22c55e', '#f59e0b', '#8b93c8']
 
 function MetricCard({ metric }: { metric: typeof KPI_METRICS[0] }) {
   const isUp = metric.changeDirection === 'up'
@@ -148,7 +147,7 @@ export function DashboardPage() {
                     <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.07)" />
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#525878' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: '#525878' }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
@@ -209,7 +208,7 @@ export function DashboardPage() {
             </div>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={AD_SPEND_DATA} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.07)" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 11, fill: '#525878' }} axisLine={false} tickLine={false} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}K`} />
                 <YAxis type="category" dataKey="platform" tick={{ fontSize: 11, fill: '#525878' }} axisLine={false} tickLine={false} width={80} />
                 <Tooltip content={<CustomTooltip />} />
