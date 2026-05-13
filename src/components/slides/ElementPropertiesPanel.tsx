@@ -92,6 +92,68 @@ const CHART_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: 'scatter', label: 'Dispersão' },
 ]
 
+const DateFilterSection = ({
+  columns,
+  dateColumn,
+  dateFrom,
+  dateTo,
+  onUpdate,
+}: {
+  columns: string[]
+  dateColumn: string
+  dateFrom: string
+  dateTo: string
+  onUpdate: (patch: Partial<SlideDataBinding>) => void
+}) => {
+  const hasFilter = dateColumn || dateFrom || dateTo
+  return (
+    <div className="space-y-2 pt-2 border-t border-[var(--border)]">
+      <div className="flex items-center justify-between">
+        <SectionLabel>Filtro por data</SectionLabel>
+        {hasFilter && (
+          <button
+            onClick={() => onUpdate({ dateColumn: undefined, dateFrom: undefined, dateTo: undefined })}
+            className="text-[9px] text-[var(--text-muted)] hover:text-red-400 transition-colors mb-2"
+          >
+            Limpar
+          </button>
+        )}
+      </div>
+      <div>
+        <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna de data</label>
+        <select
+          className="input text-xs py-1.5 h-8"
+          value={dateColumn}
+          onChange={(e) => onUpdate({ dateColumn: e.target.value || undefined })}
+        >
+          <option value="">— nenhuma —</option>
+          {columns.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <div>
+          <label className="text-[10px] text-[var(--text-muted)] block mb-1">De</label>
+          <input
+            type="date"
+            className="input text-xs h-7 py-0 px-2 w-full"
+            value={dateFrom}
+            onChange={(e) => onUpdate({ dateFrom: e.target.value || undefined })}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-[var(--text-muted)] block mb-1">Até</label>
+          <input
+            type="date"
+            className="input text-xs h-7 py-0 px-2 w-full"
+            value={dateTo}
+            onChange={(e) => onUpdate({ dateTo: e.target.value || undefined })}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const ColSelectors = ({
   columns, xKey, yKey, isPieOrDonut, onXChange, onYChange,
 }: {
@@ -453,6 +515,13 @@ export const ElementPropertiesPanel = ({
                         {columns.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
+                    <DateFilterSection
+                      columns={columns}
+                      dateColumn={db.dateColumn ?? ''}
+                      dateFrom={db.dateFrom ?? ''}
+                      dateTo={db.dateTo ?? ''}
+                      onUpdate={updateBinding}
+                    />
                   </>
                 )}
               </>
@@ -475,6 +544,13 @@ export const ElementPropertiesPanel = ({
                         {columns.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
+                    <DateFilterSection
+                      columns={columns}
+                      dateColumn={db.dateColumn ?? ''}
+                      dateFrom={db.dateFrom ?? ''}
+                      dateTo={db.dateTo ?? ''}
+                      onUpdate={updateBinding}
+                    />
                   </>
                 )}
               </>
@@ -528,14 +604,23 @@ export const ElementPropertiesPanel = ({
                   <input type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
                 </label>
                 {columns.length > 0 && (
-                  <ColSelectors
-                    columns={columns}
-                    xKey={db.xKey ?? columns[0]}
-                    yKey={db.yKey ?? columns[1] ?? columns[0]}
-                    isPieOrDonut={db.chartType === 'pie' || db.chartType === 'donut'}
-                    onXChange={(v) => updateBinding({ xKey: v })}
-                    onYChange={(v) => updateBinding({ yKey: v })}
-                  />
+                  <>
+                    <ColSelectors
+                      columns={columns}
+                      xKey={db.xKey ?? columns[0]}
+                      yKey={db.yKey ?? columns[1] ?? columns[0]}
+                      isPieOrDonut={db.chartType === 'pie' || db.chartType === 'donut'}
+                      onXChange={(v) => updateBinding({ xKey: v })}
+                      onYChange={(v) => updateBinding({ yKey: v })}
+                    />
+                    <DateFilterSection
+                      columns={columns}
+                      dateColumn={db.dateColumn ?? ''}
+                      dateFrom={db.dateFrom ?? ''}
+                      dateTo={db.dateTo ?? ''}
+                      onUpdate={updateBinding}
+                    />
+                  </>
                 )}
               </>
             )}
@@ -544,14 +629,23 @@ export const ElementPropertiesPanel = ({
               <>
                 {googleSheetsSection}
                 {columns.length > 0 && (
-                  <ColSelectors
-                    columns={columns}
-                    xKey={db.xKey ?? columns[0]}
-                    yKey={db.yKey ?? columns[1] ?? columns[0]}
-                    isPieOrDonut={db.chartType === 'pie' || db.chartType === 'donut'}
-                    onXChange={(v) => updateBinding({ xKey: v })}
-                    onYChange={(v) => updateBinding({ yKey: v })}
-                  />
+                  <>
+                    <ColSelectors
+                      columns={columns}
+                      xKey={db.xKey ?? columns[0]}
+                      yKey={db.yKey ?? columns[1] ?? columns[0]}
+                      isPieOrDonut={db.chartType === 'pie' || db.chartType === 'donut'}
+                      onXChange={(v) => updateBinding({ xKey: v })}
+                      onYChange={(v) => updateBinding({ yKey: v })}
+                    />
+                    <DateFilterSection
+                      columns={columns}
+                      dateColumn={db.dateColumn ?? ''}
+                      dateFrom={db.dateFrom ?? ''}
+                      dateTo={db.dateTo ?? ''}
+                      onUpdate={updateBinding}
+                    />
+                  </>
                 )}
               </>
             )}

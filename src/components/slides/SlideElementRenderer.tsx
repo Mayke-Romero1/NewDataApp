@@ -29,16 +29,56 @@ interface SlideElementRendererProps {
   element: SlideElement
 }
 
+const parseFlexDate = (value: string): Date | null => {
+  if (!value) return null
+  const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (iso) {
+    const d = new Date(`${iso[1]}-${iso[2]}-${iso[3]}`)
+    return isNaN(d.getTime()) ? null : d
+  }
+  const dmy = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (dmy) {
+    const d = new Date(`${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`)
+    return isNaN(d.getTime()) ? null : d
+  }
+  const mdy = value.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/)
+  if (mdy) {
+    const d = new Date(`${mdy[3]}-${mdy[1].padStart(2, '0')}-${mdy[2].padStart(2, '0')}`)
+    return isNaN(d.getTime()) ? null : d
+  }
+  const native = new Date(value)
+  return isNaN(native.getTime()) ? null : native
+}
+
+const applyDateFilter = (
+  rows: Record<string, unknown>[],
+  dateColumn: string | undefined,
+  dateFrom: string | undefined,
+  dateTo: string | undefined,
+): Record<string, unknown>[] => {
+  if (!dateColumn || (!dateFrom && !dateTo)) return rows
+  const from = dateFrom ? new Date(dateFrom) : null
+  const to = dateTo ? new Date(`${dateTo}T23:59:59`) : null
+  return rows.filter((row) => {
+    const cellDate = parseFlexDate(String(row[dateColumn] ?? ''))
+    if (!cellDate) return true
+    if (from && cellDate < from) return false
+    if (to && cellDate > to) return false
+    return true
+  })
+}
+
 const resolveChartData = (element: SlideElement) => {
   const { dataBinding } = element
   const isSpreadsheet = (dataBinding?.source === 'spreadsheet' || dataBinding?.source === 'google_sheets') && (dataBinding.customData?.length ?? 0) > 0
 
   if (isSpreadsheet) {
     const raw = dataBinding!.customData!
-    const cols = Object.keys(raw[0] ?? {})
+    const filtered = applyDateFilter(raw, dataBinding!.dateColumn, dataBinding!.dateFrom, dataBinding!.dateTo)
+    const cols = Object.keys(filtered[0] ?? raw[0] ?? {})
     const xKey = dataBinding!.xKey ?? cols[0] ?? 'x'
     const yKey = dataBinding!.yKey ?? cols[1] ?? cols[0] ?? 'y'
-    const data = raw.map((row) => ({ ...row, [yKey]: Number(row[yKey]) || 0 })) as Record<string, unknown>[]
+    const data = filtered.map((row) => ({ ...row, [yKey]: Number(row[yKey]) || 0 })) as Record<string, unknown>[]
     return { data, xKey, yKey, isSpreadsheet: true as const }
   }
 
@@ -110,7 +150,13 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
     let changeDirection: 'up' | 'down' | undefined
 
     if (isSpreadsheet) {
-      const row = dataBinding!.customData![0]
+      const filtered = applyDateFilter(
+        dataBinding!.customData!,
+        dataBinding!.dateColumn,
+        dataBinding!.dateFrom,
+        dataBinding!.dateTo,
+      )
+      const row = filtered[0] ?? dataBinding!.customData![0]
       const cols = Object.keys(row)
       const yKey = dataBinding!.yKey ?? cols[1] ?? cols[0]
       const xKey = dataBinding!.xKey ?? cols[0]

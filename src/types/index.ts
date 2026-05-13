@@ -118,6 +118,9 @@ export interface SlideDataBinding {
   xKey?: string
   yKey?: string
   sheetsUrl?: string
+  dateColumn?: string
+  dateFrom?: string
+  dateTo?: string
 }
 
 export interface SlideElement {
