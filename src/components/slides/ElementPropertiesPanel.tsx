@@ -1,8 +1,9 @@
 import {
   BringToFront, SendToBack, Lock, Unlock, Eye, EyeOff,
   AlignLeft, AlignCenter, AlignRight, Bold, Italic, Trash2,
-  Upload, X,
+  Upload, X, RefreshCw, CheckCircle2, AlertCircle,
 } from 'lucide-react'
+import { useState } from 'react'
 import type { SlideElement, SlideDataBinding } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -35,22 +36,30 @@ const NumInput = ({
   </div>
 )
 
+type DataSource = 'demo' | 'spreadsheet' | 'google_sheets'
+
+const SOURCE_OPTIONS: { value: DataSource; label: string }[] = [
+  { value: 'demo', label: 'Demo' },
+  { value: 'spreadsheet', label: 'CSV' },
+  { value: 'google_sheets', label: 'Sheets' },
+]
+
 const SourceToggle = ({
   value, onChange,
-}: { value: 'demo' | 'spreadsheet'; onChange: (v: 'demo' | 'spreadsheet') => void }) => (
+}: { value: DataSource; onChange: (v: DataSource) => void }) => (
   <div className="flex gap-1">
-    {(['demo', 'spreadsheet'] as const).map((s) => (
+    {SOURCE_OPTIONS.map((opt) => (
       <button
-        key={s}
-        onClick={() => onChange(s)}
+        key={opt.value}
+        onClick={() => onChange(opt.value)}
         className={cn(
           'flex-1 h-7 text-[10px] rounded border transition-colors',
-          value === s
+          value === opt.value
             ? 'bg-[rgba(79,99,247,0.2)] border-brand-500 text-[#748bff]'
             : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[rgba(255,255,255,0.2)]'
         )}
       >
-        {s === 'demo' ? 'Demo' : 'Planilha'}
+        {opt.label}
       </button>
     ))}
   </div>
@@ -66,6 +75,13 @@ const parseCSV = (text: string): Record<string, unknown>[] => {
   })
 }
 
+const extractSheetInfo = (url: string): { id: string; gid: string } | null => {
+  const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)
+  if (!idMatch) return null
+  const gidMatch = url.match(/[?&#]gid=(\d+)/)
+  return { id: idMatch[1], gid: gidMatch?.[1] ?? '0' }
+}
+
 const CHART_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: 'area', label: 'Área' },
   { value: 'bar', label: 'Barras verticais' },
@@ -76,6 +92,36 @@ const CHART_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: 'scatter', label: 'Dispersão' },
 ]
 
+const ColSelectors = ({
+  columns, xKey, yKey, isPieOrDonut, onXChange, onYChange,
+}: {
+  columns: string[]
+  xKey: string
+  yKey: string
+  isPieOrDonut: boolean
+  onXChange: (v: string) => void
+  onYChange: (v: string) => void
+}) => (
+  <>
+    <div>
+      <label className="text-[10px] text-[var(--text-muted)] block mb-1">
+        {isPieOrDonut ? 'Coluna de rótulos' : 'Coluna X'}
+      </label>
+      <select className="input text-xs py-1.5 h-8" value={xKey} onChange={(e) => onXChange(e.target.value)}>
+        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
+    </div>
+    <div>
+      <label className="text-[10px] text-[var(--text-muted)] block mb-1">
+        {isPieOrDonut ? 'Coluna de valores' : 'Coluna Y'}
+      </label>
+      <select className="input text-xs py-1.5 h-8" value={yKey} onChange={(e) => onYChange(e.target.value)}>
+        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
+    </div>
+  </>
+)
+
 export const ElementPropertiesPanel = ({
   element,
   onUpdate,
@@ -84,9 +130,13 @@ export const ElementPropertiesPanel = ({
 }: ElementPropertiesPanelProps) => {
   const { style, dataBinding } = element
   const db = dataBinding ?? {} as SlideDataBinding
-  const source = db.source ?? 'demo'
+  const source = (db.source ?? 'demo') as DataSource
   const customData = db.customData ?? []
   const columns = customData.length > 0 ? Object.keys(customData[0]) : []
+
+  const [sheetsUrlInput, setSheetsUrlInput] = useState(db.sheetsUrl ?? '')
+  const [fetchLoading, setFetchLoading] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   const updateBinding = (patch: Partial<SlideDataBinding>) =>
     onUpdate({ dataBinding: { ...db, ...patch } })
@@ -99,12 +149,7 @@ export const ElementPropertiesPanel = ({
       const parsed = parseCSV((ev.target?.result as string) ?? '')
       if (parsed.length === 0) return
       const cols = Object.keys(parsed[0])
-      updateBinding({
-        source: 'spreadsheet',
-        customData: parsed,
-        xKey: cols[0],
-        yKey: cols[1] ?? cols[0],
-      })
+      updateBinding({ source: 'spreadsheet', customData: parsed, xKey: cols[0], yKey: cols[1] ?? cols[0] })
     }
     reader.readAsText(file)
     e.target.value = ''
@@ -114,12 +159,94 @@ export const ElementPropertiesPanel = ({
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => {
-      onUpdate({ content: ev.target?.result as string })
-    }
+    reader.onload = (ev) => { onUpdate({ content: ev.target?.result as string }) }
     reader.readAsDataURL(file)
     e.target.value = ''
   }
+
+  const handleSheetsConnect = async () => {
+    const url = sheetsUrlInput.trim()
+    if (!url) return
+
+    const info = extractSheetInfo(url)
+    if (!info) {
+      setFetchError('URL inválida. Cole a URL da planilha do Google Sheets.')
+      return
+    }
+
+    setFetchLoading(true)
+    setFetchError(null)
+
+    try {
+      const exportUrl = `https://docs.google.com/spreadsheets/d/${info.id}/export?format=csv&gid=${info.gid}`
+      const res = await fetch(exportUrl)
+
+      if (!res.ok) {
+        throw new Error('Planilha inacessível. Verifique se está compartilhada como "Qualquer pessoa com o link pode ver".')
+      }
+
+      const text = await res.text()
+      const rows = parseCSV(text)
+
+      if (rows.length === 0) {
+        throw new Error('Nenhum dado encontrado na planilha.')
+      }
+
+      const cols = Object.keys(rows[0])
+      updateBinding({
+        source: 'google_sheets',
+        customData: rows,
+        sheetsUrl: url,
+        xKey: cols[0],
+        yKey: cols[1] ?? cols[0],
+      })
+    } catch (err) {
+      if (err instanceof TypeError && err.message.includes('fetch')) {
+        setFetchError('Erro de acesso (CORS). Publique a planilha via Arquivo → Compartilhar → Publicar na web.')
+      } else {
+        setFetchError(err instanceof Error ? err.message : 'Falha ao conectar.')
+      }
+    } finally {
+      setFetchLoading(false)
+    }
+  }
+
+  const googleSheetsSection = (
+    <div className="space-y-2">
+      <div className="flex gap-1">
+        <input
+          type="text"
+          className="input text-xs h-8 flex-1 min-w-0"
+          placeholder="Cole a URL da planilha…"
+          value={sheetsUrlInput}
+          onChange={(e) => setSheetsUrlInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSheetsConnect() }}
+        />
+        <button
+          onClick={handleSheetsConnect}
+          disabled={fetchLoading || !sheetsUrlInput.trim()}
+          className="btn-secondary text-xs h-8 py-0 px-2.5 flex-shrink-0 disabled:opacity-40"
+          title="Conectar planilha"
+        >
+          {fetchLoading ? <RefreshCw size={12} className="animate-spin" /> : 'Conectar'}
+        </button>
+      </div>
+
+      {fetchError && (
+        <div className="flex items-start gap-1.5 text-[10px] text-red-400 leading-tight">
+          <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+          <span>{fetchError}</span>
+        </div>
+      )}
+
+      {!fetchError && source === 'google_sheets' && customData.length > 0 && (
+        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400">
+          <CheckCircle2 size={12} />
+          <span>{customData.length} linhas carregadas</span>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className="space-y-5">
@@ -142,9 +269,7 @@ export const ElementPropertiesPanel = ({
               Opacidade — {Math.round(element.opacity * 100)}%
             </label>
             <input
-              type="range"
-              min={0}
-              max={100}
+              type="range" min={0} max={100}
               value={Math.round(element.opacity * 100)}
               onChange={(e) => onUpdate({ opacity: Number(e.target.value) / 100 })}
               className="w-full accent-[#4f63f7]"
@@ -156,10 +281,10 @@ export const ElementPropertiesPanel = ({
       <div>
         <SectionLabel>Camadas</SectionLabel>
         <div className="grid grid-cols-2 gap-1.5">
-          <button onClick={() => onReorder('front')} className="btn-secondary text-xs h-7 py-0 px-2 gap-1.5" title="Trazer à frente">
+          <button onClick={() => onReorder('front')} className="btn-secondary text-xs h-7 py-0 px-2 gap-1.5">
             <BringToFront size={12} /> Frente
           </button>
-          <button onClick={() => onReorder('back')} className="btn-secondary text-xs h-7 py-0 px-2 gap-1.5" title="Enviar para trás">
+          <button onClick={() => onReorder('back')} className="btn-secondary text-xs h-7 py-0 px-2 gap-1.5">
             <SendToBack size={12} /> Fundo
           </button>
           <button
@@ -196,10 +321,8 @@ export const ElementPropertiesPanel = ({
               </div>
             </div>
             <NumInput
-              label="Tamanho (px)"
-              value={style.fontSize ?? 16}
-              onChange={(v) => onUpdate({ style: { ...style, fontSize: Math.max(8, v) } })}
-              min={8}
+              label="Tamanho (px)" value={style.fontSize ?? 16}
+              onChange={(v) => onUpdate({ style: { ...style, fontSize: Math.max(8, v) } })} min={8}
             />
             <div>
               <label className="text-[10px] text-[var(--text-muted)] block mb-1">Estilo</label>
@@ -253,10 +376,8 @@ export const ElementPropertiesPanel = ({
               />
             </div>
             <NumInput
-              label="Borda arredondada (px)"
-              value={style.borderRadius ?? 0}
-              onChange={(v) => onUpdate({ style: { ...style, borderRadius: Math.max(0, v) } })}
-              min={0}
+              label="Borda arredondada (px)" value={style.borderRadius ?? 0}
+              onChange={(v) => onUpdate({ style: { ...style, borderRadius: Math.max(0, v) } })} min={0}
             />
           </div>
         </div>
@@ -272,7 +393,6 @@ export const ElementPropertiesPanel = ({
                 <button
                   onClick={() => onUpdate({ content: undefined })}
                   className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded bg-black/60 hover:bg-black/80 text-white transition-colors"
-                  title="Remover imagem"
                 >
                   <X size={11} />
                 </button>
@@ -296,7 +416,7 @@ export const ElementPropertiesPanel = ({
               <SourceToggle value={source} onChange={(s) => updateBinding({ source: s })} />
             </div>
 
-            {source !== 'spreadsheet' ? (
+            {source === 'demo' && (
               <div>
                 <label className="text-[10px] text-[var(--text-muted)] block mb-1">Métrica</label>
                 <select
@@ -310,7 +430,9 @@ export const ElementPropertiesPanel = ({
                   <option value="roas">ROAS Médio</option>
                 </select>
               </div>
-            ) : (
+            )}
+
+            {source === 'spreadsheet' && (
               <>
                 <label className="btn-secondary text-xs h-8 py-0 w-full cursor-pointer flex items-center justify-center gap-1.5">
                   <Upload size={12} />
@@ -321,21 +443,35 @@ export const ElementPropertiesPanel = ({
                   <>
                     <div>
                       <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna do rótulo</label>
-                      <select
-                        className="input text-xs py-1.5 h-8"
-                        value={db.xKey ?? columns[0]}
-                        onChange={(e) => updateBinding({ xKey: e.target.value })}
-                      >
+                      <select className="input text-xs py-1.5 h-8" value={db.xKey ?? columns[0]} onChange={(e) => updateBinding({ xKey: e.target.value })}>
                         {columns.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna do valor</label>
-                      <select
-                        className="input text-xs py-1.5 h-8"
-                        value={db.yKey ?? columns[1] ?? columns[0]}
-                        onChange={(e) => updateBinding({ yKey: e.target.value })}
-                      >
+                      <select className="input text-xs py-1.5 h-8" value={db.yKey ?? columns[1] ?? columns[0]} onChange={(e) => updateBinding({ yKey: e.target.value })}>
+                        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {source === 'google_sheets' && (
+              <>
+                {googleSheetsSection}
+                {columns.length > 0 && (
+                  <>
+                    <div>
+                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna do rótulo</label>
+                      <select className="input text-xs py-1.5 h-8" value={db.xKey ?? columns[0]} onChange={(e) => updateBinding({ xKey: e.target.value })}>
+                        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna do valor</label>
+                      <select className="input text-xs py-1.5 h-8" value={db.yKey ?? columns[1] ?? columns[0]} onChange={(e) => updateBinding({ yKey: e.target.value })}>
                         {columns.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
@@ -369,7 +505,7 @@ export const ElementPropertiesPanel = ({
               <SourceToggle value={source} onChange={(s) => updateBinding({ source: s })} />
             </div>
 
-            {source !== 'spreadsheet' ? (
+            {source === 'demo' && (
               <div>
                 <label className="text-[10px] text-[var(--text-muted)] block mb-1">Período</label>
                 <select
@@ -382,7 +518,9 @@ export const ElementPropertiesPanel = ({
                   <option value="last_90d">Últimos 90 dias</option>
                 </select>
               </div>
-            ) : (
+            )}
+
+            {source === 'spreadsheet' && (
               <>
                 <label className="btn-secondary text-xs h-8 py-0 w-full cursor-pointer flex items-center justify-center gap-1.5">
                   <Upload size={12} />
@@ -390,32 +528,30 @@ export const ElementPropertiesPanel = ({
                   <input type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
                 </label>
                 {columns.length > 0 && (
-                  <>
-                    <div>
-                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">
-                        {db.chartType === 'pie' || db.chartType === 'donut' ? 'Coluna de rótulos' : 'Coluna X'}
-                      </label>
-                      <select
-                        className="input text-xs py-1.5 h-8"
-                        value={db.xKey ?? columns[0]}
-                        onChange={(e) => updateBinding({ xKey: e.target.value })}
-                      >
-                        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">
-                        {db.chartType === 'pie' || db.chartType === 'donut' ? 'Coluna de valores' : 'Coluna Y'}
-                      </label>
-                      <select
-                        className="input text-xs py-1.5 h-8"
-                        value={db.yKey ?? columns[1] ?? columns[0]}
-                        onChange={(e) => updateBinding({ yKey: e.target.value })}
-                      >
-                        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                  </>
+                  <ColSelectors
+                    columns={columns}
+                    xKey={db.xKey ?? columns[0]}
+                    yKey={db.yKey ?? columns[1] ?? columns[0]}
+                    isPieOrDonut={db.chartType === 'pie' || db.chartType === 'donut'}
+                    onXChange={(v) => updateBinding({ xKey: v })}
+                    onYChange={(v) => updateBinding({ yKey: v })}
+                  />
+                )}
+              </>
+            )}
+
+            {source === 'google_sheets' && (
+              <>
+                {googleSheetsSection}
+                {columns.length > 0 && (
+                  <ColSelectors
+                    columns={columns}
+                    xKey={db.xKey ?? columns[0]}
+                    yKey={db.yKey ?? columns[1] ?? columns[0]}
+                    isPieOrDonut={db.chartType === 'pie' || db.chartType === 'donut'}
+                    onXChange={(v) => updateBinding({ xKey: v })}
+                    onYChange={(v) => updateBinding({ yKey: v })}
+                  />
                 )}
               </>
             )}

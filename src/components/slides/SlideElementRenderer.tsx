@@ -31,7 +31,7 @@ interface SlideElementRendererProps {
 
 const resolveChartData = (element: SlideElement) => {
   const { dataBinding } = element
-  const isSpreadsheet = dataBinding?.source === 'spreadsheet' && (dataBinding.customData?.length ?? 0) > 0
+  const isSpreadsheet = (dataBinding?.source === 'spreadsheet' || dataBinding?.source === 'google_sheets') && (dataBinding.customData?.length ?? 0) > 0
 
   if (isSpreadsheet) {
     const raw = dataBinding!.customData!
@@ -102,7 +102,7 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
   }
 
   if (type === 'kpi') {
-    const isSpreadsheet = dataBinding?.source === 'spreadsheet' && (dataBinding.customData?.length ?? 0) > 0
+    const isSpreadsheet = (dataBinding?.source === 'spreadsheet' || dataBinding?.source === 'google_sheets') && (dataBinding.customData?.length ?? 0) > 0
 
     let label = ''
     let value = '—'
@@ -162,7 +162,7 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
     const { data, xKey, yKey } = resolveChartData(element)
 
     if (chartType === 'pie' || chartType === 'donut') {
-      const isSpreadsheet = dataBinding?.source === 'spreadsheet' && (dataBinding.customData?.length ?? 0) > 0
+      const isSpreadsheet = (dataBinding?.source === 'spreadsheet' || dataBinding?.source === 'google_sheets') && (dataBinding.customData?.length ?? 0) > 0
       const pieData = isSpreadsheet
         ? data.map((row, i) => ({
             name: String(row[xKey] ?? `Item ${i + 1}`),
@@ -198,7 +198,7 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
     }
 
     if (chartType === 'bar_horizontal') {
-      const isSpreadsheet = dataBinding?.source === 'spreadsheet' && (dataBinding.customData?.length ?? 0) > 0
+      const isSpreadsheet = (dataBinding?.source === 'spreadsheet' || dataBinding?.source === 'google_sheets') && (dataBinding.customData?.length ?? 0) > 0
       const hData = isSpreadsheet
         ? data
         : AD_SPEND_DATA.map((d) => ({ platform: d.platform, spend: d.spend }))
@@ -220,7 +220,7 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
     }
 
     if (chartType === 'scatter') {
-      const isSpreadsheet = dataBinding?.source === 'spreadsheet' && (dataBinding.customData?.length ?? 0) > 0
+      const isSpreadsheet = (dataBinding?.source === 'spreadsheet' || dataBinding?.source === 'google_sheets') && (dataBinding.customData?.length ?? 0) > 0
       const sData = isSpreadsheet
         ? data.map((row) => ({ x: Number(row[xKey]) || 0, y: Number(row[yKey]) || 0 }))
         : SESSIONS_DATA.map((d) => ({ x: d.sessions, y: d.conversions }))
