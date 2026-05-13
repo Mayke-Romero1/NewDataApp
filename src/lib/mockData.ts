@@ -1,6 +1,8 @@
 import type {
   Client,
   Dashboard,
+  Slide,
+  SlideElement,
   SlidePresentation,
 } from '@/types'
 
@@ -117,6 +119,139 @@ export const MOCK_DASHBOARDS: Dashboard[] = [
   },
 ]
 
+// ─── Slide Mock Elements ──────────────────────────────────────────────────────
+
+const SLIDE_1_ELEMENTS: SlideElement[] = [
+  {
+    id: 'el-s1-badge',
+    type: 'text',
+    x: 510, y: 200, width: 260, height: 36,
+    rotation: 0, opacity: 1, zIndex: 1, visibility: true, locked: false,
+    content: 'Relatório Mensal',
+    style: {
+      backgroundColor: 'rgba(79,99,247,0.15)',
+      color: '#748bff',
+      fontSize: 11,
+      textAlign: 'center',
+      borderRadius: 20,
+      borderColor: 'rgba(79,99,247,0.25)',
+      borderWidth: 1,
+    },
+  },
+  {
+    id: 'el-s1-title',
+    type: 'text',
+    x: 160, y: 250, width: 960, height: 120,
+    rotation: 0, opacity: 1, zIndex: 2, visibility: true, locked: false,
+    content: 'Performance de\nMarketing — Maio 2025',
+    style: { color: '#f0f2ff', fontSize: 40, fontWeight: 'bold', textAlign: 'center' },
+  },
+  {
+    id: 'el-s1-subtitle',
+    type: 'text',
+    x: 290, y: 382, width: 700, height: 44,
+    rotation: 0, opacity: 1, zIndex: 3, visibility: true, locked: false,
+    content: 'Dados ao vivo integrados com GA4, Meta Ads e Google Ads',
+    style: { color: '#8b93c8', fontSize: 14, textAlign: 'center' },
+  },
+  {
+    id: 'el-s1-kpi1',
+    type: 'kpi',
+    x: 350, y: 450, width: 260, height: 110,
+    rotation: 0, opacity: 1, zIndex: 4, visibility: true, locked: false,
+    style: {},
+    dataBinding: { metric: 'sessions' },
+  },
+  {
+    id: 'el-s1-kpi2',
+    type: 'kpi',
+    x: 670, y: 450, width: 260, height: 110,
+    rotation: 0, opacity: 1, zIndex: 5, visibility: true, locked: false,
+    style: {},
+    dataBinding: { metric: 'conversions' },
+  },
+]
+
+const SLIDE_2_ELEMENTS: SlideElement[] = [
+  {
+    id: 'el-s2-title',
+    type: 'text',
+    x: 64, y: 40, width: 700, height: 48,
+    rotation: 0, opacity: 1, zIndex: 1, visibility: true, locked: false,
+    content: 'Sessões no período',
+    style: { color: '#f0f2ff', fontSize: 22, fontWeight: 'bold' },
+  },
+  {
+    id: 'el-s2-source',
+    type: 'text',
+    x: 64, y: 92, width: 700, height: 28,
+    rotation: 0, opacity: 1, zIndex: 2, visibility: true, locked: false,
+    content: 'Fonte: Google Analytics 4 — últimos 12 dias',
+    style: { color: '#8b93c8', fontSize: 12 },
+  },
+  {
+    id: 'el-s2-chart',
+    type: 'chart',
+    x: 64, y: 130, width: 1152, height: 544,
+    rotation: 0, opacity: 1, zIndex: 3, visibility: true, locked: false,
+    style: {},
+    dataBinding: { source: 'ga4', metric: 'sessions', chartType: 'area' },
+  },
+]
+
+const SLIDE_3_ELEMENTS: SlideElement[] = [
+  {
+    id: 'el-s3-title',
+    type: 'text',
+    x: 64, y: 32, width: 500, height: 48,
+    rotation: 0, opacity: 1, zIndex: 1, visibility: true, locked: false,
+    content: 'KPIs do mês',
+    style: { color: '#f0f2ff', fontSize: 22, fontWeight: 'bold' },
+  },
+  {
+    id: 'el-s3-kpi1',
+    type: 'kpi',
+    x: 64, y: 96, width: 548, height: 264,
+    rotation: 0, opacity: 1, zIndex: 2, visibility: true, locked: false,
+    style: {},
+    dataBinding: { metric: 'sessions' },
+  },
+  {
+    id: 'el-s3-kpi2',
+    type: 'kpi',
+    x: 668, y: 96, width: 548, height: 264,
+    rotation: 0, opacity: 1, zIndex: 3, visibility: true, locked: false,
+    style: {},
+    dataBinding: { metric: 'conversions' },
+  },
+  {
+    id: 'el-s3-kpi3',
+    type: 'kpi',
+    x: 64, y: 376, width: 548, height: 264,
+    rotation: 0, opacity: 1, zIndex: 4, visibility: true, locked: false,
+    style: {},
+    dataBinding: { metric: 'cost' },
+  },
+  {
+    id: 'el-s3-kpi4',
+    type: 'kpi',
+    x: 668, y: 376, width: 548, height: 264,
+    rotation: 0, opacity: 1, zIndex: 5, visibility: true, locked: false,
+    style: {},
+    dataBinding: { metric: 'roas' },
+  },
+]
+
+const MOCK_SLIDES_PRES1: Slide[] = [
+  { id: 'slide-1-1', index: 0, background: '#0d0f1a', elements: SLIDE_1_ELEMENTS },
+  { id: 'slide-1-2', index: 1, background: '#0d0f1a', elements: SLIDE_2_ELEMENTS },
+  { id: 'slide-1-3', index: 2, background: '#0d0f1a', elements: SLIDE_3_ELEMENTS },
+]
+
+const MOCK_SLIDES_PRES2: Slide[] = [
+  { id: 'slide-2-1', index: 0, background: '#0d0f1a', elements: [] },
+]
+
 // ─── Presentations ────────────────────────────────────────────────────────────
 
 export const MOCK_PRESENTATIONS: SlidePresentation[] = [
@@ -134,7 +269,7 @@ export const MOCK_PRESENTATIONS: SlidePresentation[] = [
       fontDisplay: 'Sora',
       fontBody: 'DM Sans',
     },
-    slides: [],
+    slides: MOCK_SLIDES_PRES1,
     integrations: ['int-1', 'int-2', 'int-3'],
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2),
     updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 1),
@@ -154,7 +289,7 @@ export const MOCK_PRESENTATIONS: SlidePresentation[] = [
       fontDisplay: 'Sora',
       fontBody: 'DM Sans',
     },
-    slides: [],
+    slides: MOCK_SLIDES_PRES2,
     integrations: ['int-1', 'int-2'],
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10),
     updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1),

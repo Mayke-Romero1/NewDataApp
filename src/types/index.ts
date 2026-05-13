@@ -14,6 +14,7 @@ export type IntegrationProvider =
   | 'linkedin_ads'
   | 'search_console'
   | 'google_sheets'
+  | 'microsoft_excel'
 
 export interface Integration {
   id: string
@@ -23,6 +24,7 @@ export interface Integration {
   lastSync?: Date
   accountId?: string
   accountName?: string
+  sheetUrl?: string
 }
 
 export interface MetricValue {
@@ -94,6 +96,26 @@ export type SlideElementType =
   | 'kpi'
   | 'table'
 
+export interface SlideElementStyle {
+  backgroundColor?: string
+  color?: string
+  fontSize?: number
+  fontWeight?: 'normal' | 'bold'
+  fontStyle?: 'normal' | 'italic'
+  textAlign?: 'left' | 'center' | 'right'
+  borderRadius?: number
+  borderColor?: string
+  borderWidth?: number
+  padding?: number
+}
+
+export interface SlideDataBinding {
+  source?: string
+  metric?: string
+  dateRange?: string
+  chartType?: 'area' | 'bar' | 'line'
+}
+
 export interface SlideElement {
   id: string
   type: SlideElementType
@@ -101,11 +123,14 @@ export interface SlideElement {
   y: number
   width: number
   height: number
-  rotation?: number
+  rotation: number
+  opacity: number
+  zIndex: number
+  visibility: boolean
+  locked: boolean
   content?: string
-  dataSource?: DataSource
-  style?: Record<string, string>
-  config?: Record<string, unknown>
+  style: SlideElementStyle
+  dataBinding?: SlideDataBinding
 }
 
 export interface Slide {
@@ -114,7 +139,6 @@ export interface Slide {
   background: string
   elements: SlideElement[]
   notes?: string
-  thumbnail?: string
 }
 
 export interface SlidePresentation {

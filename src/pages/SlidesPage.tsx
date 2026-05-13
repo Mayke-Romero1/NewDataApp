@@ -1,99 +1,167 @@
 import {
   Plus, Presentation, Download, Share2, Play,
   Type, Image, BarChart2, Layers,
-  AlignLeft, Bold, Italic, Link
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 import { cn, formatRelativeTime } from '@/lib/utils'
-import { KPI_METRICS, SESSIONS_DATA } from '@/lib/mockData'
-import {
-  AreaChart, Area, ResponsiveContainer, Tooltip, XAxis
-} from 'recharts'
+import type { Slide, SlideElement, SlideElementType } from '@/types'
+import { SlideCanvas } from '@/components/slides/SlideCanvas'
+import { SlideThumbnailStrip } from '@/components/slides/SlideThumbnailStrip'
+import { SlideEditorPanel } from '@/components/slides/SlideEditorPanel'
 
-const SLIDE_THEMES = [
-  { name: 'Dark Brand', bg: '#0d0f1a', accent: '#4f63f7' },
-  { name: 'Clean Light', bg: '#ffffff', accent: '#4f63f7' },
-  { name: 'Midnight', bg: '#0a0a14', accent: '#748bff' },
-  { name: 'Forest', bg: '#0d1a12', accent: '#22c55e' },
+const ELEMENT_TOOLS: { icon: React.ElementType; label: string; type: SlideElementType }[] = [
+  { icon: Type, label: 'Texto', type: 'text' },
+  { icon: Image, label: 'Imagem', type: 'image' },
+  { icon: BarChart2, label: 'Gráfico', type: 'chart' },
+  { icon: Layers, label: 'Shape', type: 'shape' },
 ]
 
-const ELEMENT_TOOLS = [
-  { icon: Type, label: 'Texto' },
-  { icon: Image, label: 'Imagem' },
-  { icon: BarChart2, label: 'Gráfico' },
-  { icon: Layers, label: 'Shape' },
-]
+const buildDefaultElement = (type: SlideElementType, zIndex: number): SlideElement => {
+  const base = {
+    id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    rotation: 0,
+    opacity: 1,
+    zIndex,
+    visibility: true,
+    locked: false,
+  }
 
-function MockSlideCanvas({ index }: { index: number; active?: boolean }) {
-  const slides = [
-    // Slide 1 — Title
-    <div key={0} className="w-full h-full flex flex-col items-center justify-center gap-4 p-10">
-      <span className="badge badge-brand text-xs">Relatório Mensal</span>
-      <h2 className="font-display font-bold text-3xl text-center leading-tight">
-        Performance de<br />Marketing — Maio 2025
-      </h2>
-      <p className="text-sm text-[var(--text-secondary)] text-center max-w-xs">
-        Dados ao vivo integrados com GA4, Meta Ads e Google Ads
-      </p>
-      <div className="flex gap-3 mt-2">
-        {KPI_METRICS.slice(0, 2).map((m) => (
-          <div key={m.label} className="card py-2 px-4 text-center">
-            <p className="text-xs text-[var(--text-muted)]">{m.label}</p>
-            <p className="font-display font-bold text-lg text-[var(--text-primary)]">{m.value}</p>
-          </div>
-        ))}
-      </div>
-    </div>,
-    // Slide 2 — Chart
-    <div key={1} className="w-full h-full flex flex-col p-8 gap-4">
-      <h2 className="font-display font-semibold text-xl">Sessões no período</h2>
-      <p className="text-xs text-[var(--text-muted)]">Fonte: Google Analytics 4 — últimos 12 dias</p>
-      <div className="flex-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={SESSIONS_DATA}>
-            <defs>
-              <linearGradient id="csGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#4f63f7" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#4f63f7" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#525878' }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={{ background: '#13162a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 11 }} />
-            <Area type="monotone" dataKey="sessions" stroke="#4f63f7" fill="url(#csGrad)" strokeWidth={2} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </div>,
-    // Slide 3 — KPIs
-    <div key={2} className="w-full h-full flex flex-col p-8 gap-4">
-      <h2 className="font-display font-semibold text-xl">KPIs do mês</h2>
-      <div className="grid grid-cols-2 gap-3 flex-1">
-        {KPI_METRICS.map((m) => (
-          <div key={m.label} className="card flex flex-col justify-center">
-            <p className="text-xs text-[var(--text-muted)]">{m.label}</p>
-            <p className="font-display font-bold text-2xl text-[var(--text-primary)]">{m.value}</p>
-            <p className={cn('text-xs font-medium mt-0.5', m.changeDirection === 'up' ? 'text-green-400' : 'text-red-400')}>
-              {m.change > 0 ? '+' : ''}{m.change}% vs anterior
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>,
-  ]
-
-  return slides[index % slides.length]
+  switch (type) {
+    case 'text':
+      return {
+        ...base, type,
+        x: 240, y: 280, width: 800, height: 80,
+        content: 'Texto',
+        style: { color: '#f0f2ff', fontSize: 24, textAlign: 'center' },
+      }
+    case 'shape':
+      return {
+        ...base, type,
+        x: 390, y: 210, width: 500, height: 300,
+        style: { backgroundColor: 'rgba(79,99,247,0.15)', borderRadius: 12 },
+      }
+    case 'chart':
+      return {
+        ...base, type,
+        x: 64, y: 64, width: 1152, height: 592,
+        style: {},
+        dataBinding: { source: 'ga4', metric: 'sessions', chartType: 'area' },
+      }
+    case 'kpi':
+      return {
+        ...base, type,
+        x: 490, y: 210, width: 300, height: 200,
+        style: {},
+        dataBinding: { metric: 'sessions' },
+      }
+    case 'image':
+      return {
+        ...base, type,
+        x: 240, y: 160, width: 800, height: 400,
+        style: {},
+      }
+    default:
+      return {
+        ...base, type,
+        x: 240, y: 280, width: 800, height: 200,
+        style: {},
+      }
+  }
 }
 
-export function SlidesPage() {
-  const { presentations, activePresentationId, setActivePresentation, createPresentation } = useAppStore()
+export const SlidesPage = () => {
+  const {
+    presentations,
+    activePresentationId,
+    setActivePresentation,
+    createPresentation,
+    addSlide,
+    updateSlide,
+    addElement,
+    updateElement,
+    removeElement,
+    reorderElement,
+  } = useAppStore()
+
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0)
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
+
   const activePresentation = presentations.find((p) => p.id === activePresentationId) ?? presentations[0]
-  const [activeSlide, setActiveSlide] = useState(0)
-  const slideCount = 3
+  const activeSlide = activePresentation?.slides[activeSlideIndex] ?? activePresentation?.slides[0]
+
+  const handleSetActivePresentation = (id: string) => {
+    setActivePresentation(id)
+    setActiveSlideIndex(0)
+    setSelectedElementId(null)
+  }
+
+  const handleAddSlide = () => {
+    if (!activePresentation) return
+    const newSlide: Slide = {
+      id: `slide-${Date.now()}`,
+      index: activePresentation.slides.length,
+      background: '#0d0f1a',
+      elements: [],
+    }
+    addSlide(activePresentation.id, newSlide)
+    setActiveSlideIndex(activePresentation.slides.length)
+    setSelectedElementId(null)
+  }
+
+  const handleSelectSlide = (index: number) => {
+    setActiveSlideIndex(index)
+    setSelectedElementId(null)
+  }
+
+  const handleAddElement = (type: SlideElementType) => {
+    if (!activePresentation || !activeSlide) return
+    const maxZ = activeSlide.elements.reduce((m, el) => Math.max(m, el.zIndex), 0)
+    const el = buildDefaultElement(type, maxZ + 1)
+    addElement(activePresentation.id, activeSlide.id, el)
+    setSelectedElementId(el.id)
+  }
+
+  const handleUpdateElement = (elementId: string, patch: Partial<SlideElement>) => {
+    if (!activePresentation || !activeSlide) return
+    updateElement(activePresentation.id, activeSlide.id, elementId, patch)
+  }
+
+  const handleDeleteElement = (elementId: string) => {
+    if (!activePresentation || !activeSlide) return
+    removeElement(activePresentation.id, activeSlide.id, elementId)
+    setSelectedElementId(null)
+  }
+
+  const handleReorderElement = (elementId: string, direction: 'front' | 'back') => {
+    if (!activePresentation || !activeSlide) return
+    reorderElement(activePresentation.id, activeSlide.id, elementId, direction)
+  }
+
+  const handleUpdateSlide = (patch: { background?: string; notes?: string }) => {
+    if (!activePresentation || !activeSlide) return
+    updateSlide(activePresentation.id, activeSlide.id, patch)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementId) {
+      const activeEl = document.activeElement?.tagName
+      if (activeEl === 'INPUT' || activeEl === 'TEXTAREA' || activeEl === 'SELECT') return
+      handleDeleteElement(selectedElementId)
+    }
+    if (e.key === 'Escape') {
+      setSelectedElementId(null)
+    }
+  }
+
+  if (!activePresentation || !activeSlide) return null
 
   return (
-    <div className="flex h-full">
-      {/* Presentations list */}
+    <div
+      className="flex h-full outline-none"
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+    >
       <aside className="w-52 border-r border-[var(--border)] flex flex-col py-4 px-3 gap-1 bg-[var(--bg-secondary)] flex-shrink-0">
         <div className="flex items-center justify-between px-1 mb-2">
           <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Apresentações</span>
@@ -107,7 +175,7 @@ export function SlidesPage() {
         {presentations.map((p) => (
           <button
             key={p.id}
-            onClick={() => setActivePresentation(p.id)}
+            onClick={() => handleSetActivePresentation(p.id)}
             className={cn(
               'sidebar-item w-full text-left text-xs',
               activePresentationId === p.id && 'active'
@@ -119,35 +187,27 @@ export function SlidesPage() {
         ))}
       </aside>
 
-      {/* Editor area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Editor toolbar */}
         <div className="h-12 border-b border-[var(--border)] flex items-center px-4 gap-3 flex-shrink-0">
           <div className="flex items-center gap-1">
-            {ELEMENT_TOOLS.map(({ icon: Icon, label }) => (
+            {ELEMENT_TOOLS.map(({ icon: Icon, label, type }) => (
               <button
-                key={label}
+                key={type}
                 title={label}
+                onClick={() => handleAddElement(type)}
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--bg-glass)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
               >
                 <Icon size={16} />
               </button>
             ))}
           </div>
+
           <div className="w-px h-5 bg-[var(--border)]" />
-          <div className="flex items-center gap-1">
-            {[Bold, Italic, AlignLeft, Link].map((Icon, i) => (
-              <button
-                key={i}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--bg-glass)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                <Icon size={15} />
-              </button>
-            ))}
-          </div>
+
           <div className="flex-1" />
+
           <div className="flex items-center gap-2">
-            {activePresentation?.updatedAt && (
+            {activePresentation.updatedAt && (
               <span className="text-xs text-[var(--text-muted)]">
                 Salvo {formatRelativeTime(activePresentation.updatedAt)}
               </span>
@@ -165,109 +225,30 @@ export function SlidesPage() {
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Slide thumbnails */}
-          <div className="w-36 border-r border-[var(--border)] flex flex-col gap-2 p-3 overflow-y-auto bg-[var(--bg-secondary)] flex-shrink-0">
-            {Array.from({ length: slideCount }).map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setActiveSlide(i)}
-                className={cn(
-                  'relative rounded-lg overflow-hidden border transition-all',
-                  activeSlide === i
-                    ? 'border-brand-500 shadow-[0_0_0_2px_rgba(79,99,247,0.3)]'
-                    : 'border-[var(--border)] hover:border-[rgba(255,255,255,0.15)]'
-                )}
-                style={{ aspectRatio: '16/9' }}
-              >
-                <div className="absolute inset-0 bg-[var(--bg-primary)] flex items-center justify-center scale-[0.35] origin-top-left"
-                  style={{ width: '285%', height: '285%' }}>
-                  <MockSlideCanvas index={i} active={activeSlide === i} />
-                </div>
-                <span className="absolute bottom-1 right-1.5 text-[9px] text-[var(--text-muted)]">{i + 1}</span>
-              </button>
-            ))}
-            <button className="border border-dashed border-[var(--border)] rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-active)] transition-all"
-              style={{ aspectRatio: '16/9' }}>
-              <Plus size={16} />
-            </button>
-          </div>
+          <SlideThumbnailStrip
+            slides={activePresentation.slides}
+            activeSlideIndex={activeSlideIndex}
+            onSelectSlide={handleSelectSlide}
+            onAddSlide={handleAddSlide}
+          />
 
-          {/* Main canvas */}
-          <div className="flex-1 flex items-center justify-center bg-[var(--bg-primary)] p-8 overflow-hidden">
-            <div
-              className="bg-[var(--bg-secondary)] border border-[var(--border)] shadow-2xl"
-              style={{
-                width: '100%',
-                maxWidth: 800,
-                aspectRatio: '16/9',
-                borderRadius: 12,
-                overflow: 'hidden',
-              }}
-            >
-              <MockSlideCanvas index={activeSlide} active />
-            </div>
-          </div>
+          <SlideCanvas
+            slide={activeSlide}
+            selectedElementId={selectedElementId}
+            onSelectElement={setSelectedElementId}
+            onUpdateElement={handleUpdateElement}
+          />
 
-          {/* Properties panel */}
-          <aside className="w-56 border-l border-[var(--border)] p-4 bg-[var(--bg-secondary)] flex-shrink-0 overflow-y-auto">
-            <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">Propriedades</h3>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs text-[var(--text-muted)] block mb-1.5">Tema</label>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {SLIDE_THEMES.map((t) => (
-                    <button
-                      key={t.name}
-                      title={t.name}
-                      className="w-full aspect-square rounded-lg border border-[var(--border)] hover:border-brand-500 transition-colors"
-                      style={{ background: t.bg }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-[var(--text-muted)] block mb-1.5">Fonte de dados</label>
-                <select className="input text-xs py-1.5 h-8">
-                  <option>Nenhuma</option>
-                  <option>GA4 — Sessões</option>
-                  <option>Meta Ads — ROAS</option>
-                  <option>Google Ads — CPC</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-[var(--text-muted)] block mb-1.5">Período</label>
-                <select className="input text-xs py-1.5 h-8">
-                  <option>Últimos 30 dias</option>
-                  <option>Últimos 7 dias</option>
-                  <option>Este mês</option>
-                  <option>Mês anterior</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-[var(--text-muted)] block mb-1.5">Slide {activeSlide + 1} de {slideCount}</label>
-                <div className="flex gap-1">
-                  <button
-                    className="btn-secondary text-xs h-7 py-0 flex-1"
-                    disabled={activeSlide === 0}
-                    onClick={() => setActiveSlide((s) => Math.max(0, s - 1))}
-                  >
-                    Ant.
-                  </button>
-                  <button
-                    className="btn-secondary text-xs h-7 py-0 flex-1"
-                    disabled={activeSlide === slideCount - 1}
-                    onClick={() => setActiveSlide((s) => Math.min(slideCount - 1, s + 1))}
-                  >
-                    Próx.
-                  </button>
-                </div>
-              </div>
-            </div>
-          </aside>
+          <SlideEditorPanel
+            slide={activeSlide}
+            slideIndex={activeSlideIndex}
+            slideCount={activePresentation.slides.length}
+            selectedElementId={selectedElementId}
+            onUpdateSlide={handleUpdateSlide}
+            onUpdateElement={handleUpdateElement}
+            onDeleteElement={handleDeleteElement}
+            onReorderElement={handleReorderElement}
+          />
         </div>
       </div>
     </div>

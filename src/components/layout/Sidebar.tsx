@@ -1,14 +1,13 @@
-import { LayoutDashboard, Presentation, Plug, Settings, ChevronLeft, Zap, Users } from 'lucide-react'
+import { LayoutDashboard, Presentation, Settings, ChevronLeft, Zap, Users } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import { cn } from '@/lib/utils'
 
-type AppId = 'clients' | 'dashboard' | 'slides' | 'integrations' | 'settings'
+type AppId = 'clients' | 'dashboard' | 'slides' | 'settings'
 
 const NAV_ITEMS: { id: AppId; label: string; icon: React.ElementType }[] = [
   { id: 'clients', label: 'Clientes', icon: Users },
   { id: 'dashboard', label: 'Dashboards', icon: LayoutDashboard },
   { id: 'slides', label: 'Slides', icon: Presentation },
-  { id: 'integrations', label: 'Integrações', icon: Plug },
   { id: 'settings', label: 'Configurações', icon: Settings },
 ]
 

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Client, Dashboard, SlidePresentation, Workspace } from '@/types'
+import type { Client, Dashboard, Slide, SlideElement, SlidePresentation, Workspace } from '@/types'
 import { MOCK_DASHBOARDS, MOCK_PRESENTATIONS } from '@/lib/mockData'
 
 interface AppState {
@@ -35,10 +35,18 @@ interface AppState {
   unarchivePresentation: (id: string) => void
   duplicatePresentation: (id: string) => void
 
+  // Slide & Element editing
+  addSlide: (presentationId: string, slide: Slide) => void
+  updateSlide: (presentationId: string, slideId: string, patch: { background?: string; notes?: string }) => void
+  addElement: (presentationId: string, slideId: string, element: SlideElement) => void
+  updateElement: (presentationId: string, slideId: string, elementId: string, patch: Partial<SlideElement>) => void
+  removeElement: (presentationId: string, slideId: string, elementId: string) => void
+  reorderElement: (presentationId: string, slideId: string, elementId: string, direction: 'front' | 'back') => void
+
   // UI State
   sidebarCollapsed: boolean
   toggleSidebar: () => void
-  activeApp: 'dashboard' | 'slides' | 'integrations' | 'settings' | 'clients'
+  activeApp: 'dashboard' | 'slides' | 'settings' | 'clients'
   setActiveApp: (app: AppState['activeApp']) => void
 }
 
@@ -126,6 +134,12 @@ export const useAppStore = create<AppState>((set) => ({
   activePresentationId: MOCK_PRESENTATIONS[0]?.id ?? null,
   setActivePresentation: (id) => set({ activePresentationId: id }),
   createPresentation: (name, clientId) => {
+    const defaultSlide: Slide = {
+      id: `slide-${Date.now()}`,
+      index: 0,
+      background: '#0d0f1a',
+      elements: [],
+    }
     const newPres: SlidePresentation = {
       id: `pres-${Date.now()}`,
       name,
@@ -139,7 +153,7 @@ export const useAppStore = create<AppState>((set) => ({
         fontDisplay: 'Sora',
         fontBody: 'DM Sans',
       },
-      slides: [],
+      slides: [defaultSlide],
       integrations: [],
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -182,6 +196,95 @@ export const useAppStore = create<AppState>((set) => ({
       }
       return { presentations: [...state.presentations, copy] }
     }),
+
+  addSlide: (presentationId, slide) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) =>
+        p.id !== presentationId ? p : { ...p, updatedAt: new Date(), slides: [...p.slides, slide] }
+      ),
+    })),
+
+  updateSlide: (presentationId, slideId, patch) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) =>
+        p.id !== presentationId ? p : {
+          ...p,
+          updatedAt: new Date(),
+          slides: p.slides.map((s) => s.id !== slideId ? s : { ...s, ...patch }),
+        }
+      ),
+    })),
+
+  addElement: (presentationId, slideId, element) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) =>
+        p.id !== presentationId ? p : {
+          ...p,
+          updatedAt: new Date(),
+          slides: p.slides.map((s) =>
+            s.id !== slideId ? s : { ...s, elements: [...s.elements, element] }
+          ),
+        }
+      ),
+    })),
+
+  updateElement: (presentationId, slideId, elementId, patch) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) =>
+        p.id !== presentationId ? p : {
+          ...p,
+          updatedAt: new Date(),
+          slides: p.slides.map((s) =>
+            s.id !== slideId ? s : {
+              ...s,
+              elements: s.elements.map((el) =>
+                el.id !== elementId ? el : { ...el, ...patch }
+              ),
+            }
+          ),
+        }
+      ),
+    })),
+
+  removeElement: (presentationId, slideId, elementId) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) =>
+        p.id !== presentationId ? p : {
+          ...p,
+          updatedAt: new Date(),
+          slides: p.slides.map((s) =>
+            s.id !== slideId ? s : {
+              ...s,
+              elements: s.elements.filter((el) => el.id !== elementId),
+            }
+          ),
+        }
+      ),
+    })),
+
+  reorderElement: (presentationId, slideId, elementId, direction) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) =>
+        p.id !== presentationId ? p : {
+          ...p,
+          slides: p.slides.map((s) => {
+            if (s.id !== slideId) return s
+            const zIndexes = s.elements.map((e) => e.zIndex)
+            const maxZ = Math.max(...zIndexes)
+            const minZ = Math.min(...zIndexes)
+            return {
+              ...s,
+              elements: s.elements.map((el) =>
+                el.id !== elementId ? el : {
+                  ...el,
+                  zIndex: direction === 'front' ? maxZ + 1 : minZ - 1,
+                }
+              ),
+            }
+          }),
+        }
+      ),
+    })),
 
   sidebarCollapsed: false,
   toggleSidebar: () =>

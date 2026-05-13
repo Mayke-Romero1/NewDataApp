@@ -17,3 +17,20 @@ export const syncIntegration = (id: string): Promise<void> =>
 
 export const disconnectIntegration = (id: string): Promise<void> =>
   apiFetch<void>(`/integrations/${id}`, { method: 'DELETE' })
+
+export const connectGoogleSheet = (name: string, spreadsheetUrl: string): Promise<OAuthUrlResponse> =>
+  apiFetch<OAuthUrlResponse>('/integrations/google-sheets/connect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, spreadsheetUrl }),
+  })
+
+export const uploadExcelFile = (name: string, file: File): Promise<Integration> => {
+  const formData = new FormData()
+  formData.append('name', name)
+  formData.append('file', file)
+  return apiFetch<Integration>('/integrations/excel/upload', {
+    method: 'POST',
+    body: formData,
+  })
+}

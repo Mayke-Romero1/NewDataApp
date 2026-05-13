@@ -4,7 +4,6 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { Header } from '@/components/layout/Header'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { SlidesPage } from '@/pages/SlidesPage'
-import { IntegrationsPage } from '@/pages/IntegrationsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { ClientsPage } from '@/pages/ClientsPage'
 import { ClientDetailPage } from '@/pages/ClientDetailPage'
@@ -23,7 +22,6 @@ function AppContent() {
           {activeApp === 'clients' && activeClientId !== null && <ClientDetailPage />}
           {activeApp === 'dashboard' && <DashboardPage />}
           {activeApp === 'slides' && <SlidesPage />}
-          {activeApp === 'integrations' && <IntegrationsPage />}
           {activeApp === 'settings' && <SettingsPage />}
         </main>
       </div>

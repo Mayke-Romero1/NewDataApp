@@ -41,6 +41,7 @@ export const PROVIDER_LABELS: Record<IntegrationProvider, string> = {
   linkedin_ads: 'LinkedIn Ads',
   search_console: 'Search Console',
   google_sheets: 'Google Sheets',
+  microsoft_excel: 'Microsoft Excel',
 }
 
 export const PROVIDER_COLORS: Record<IntegrationProvider, string> = {
@@ -51,6 +52,7 @@ export const PROVIDER_COLORS: Record<IntegrationProvider, string> = {
   linkedin_ads: '#0A66C2',
   search_console: '#34A853',
   google_sheets: '#0F9D58',
+  microsoft_excel: '#217346',
 }
 
 export const PROVIDER_ICONS: Record<IntegrationProvider, string> = {
@@ -61,4 +63,5 @@ export const PROVIDER_ICONS: Record<IntegrationProvider, string> = {
   linkedin_ads: 'brand-linkedin',
   search_console: 'search',
   google_sheets: 'table',
+  microsoft_excel: 'file-spreadsheet',
 }
