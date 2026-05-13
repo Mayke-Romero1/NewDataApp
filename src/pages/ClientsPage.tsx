@@ -207,7 +207,7 @@ export function ClientsPage() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ex: Coca-Cola, Nike..."
+              placeholder="Empresa"
               className="input"
             />
             <button onClick={handleCreate} className="btn-primary">Criar</button>
