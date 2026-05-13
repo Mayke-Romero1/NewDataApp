@@ -1,10 +1,10 @@
 import {
-  Plus, Presentation, Download, Share2, Play,
+  Download, Share2, Play,
   Type, Image, BarChart2, Layers,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
-import { cn, formatRelativeTime } from '@/lib/utils'
+import { formatRelativeTime } from '@/lib/utils'
 import type { Slide, SlideElement, SlideElementType } from '@/types'
 import { SlideCanvas } from '@/components/slides/SlideCanvas'
 import { SlideThumbnailStrip } from '@/components/slides/SlideThumbnailStrip'
@@ -74,8 +74,6 @@ export const SlidesPage = () => {
   const {
     presentations,
     activePresentationId,
-    setActivePresentation,
-    createPresentation,
     addSlide,
     updateSlide,
     addElement,
@@ -89,12 +87,6 @@ export const SlidesPage = () => {
 
   const activePresentation = presentations.find((p) => p.id === activePresentationId) ?? presentations[0]
   const activeSlide = activePresentation?.slides[activeSlideIndex] ?? activePresentation?.slides[0]
-
-  const handleSetActivePresentation = (id: string) => {
-    setActivePresentation(id)
-    setActiveSlideIndex(0)
-    setSelectedElementId(null)
-  }
 
   const handleAddSlide = () => {
     if (!activePresentation) return
@@ -162,31 +154,6 @@ export const SlidesPage = () => {
       tabIndex={-1}
       onKeyDown={handleKeyDown}
     >
-      <aside className="w-52 border-r border-[var(--border)] flex flex-col py-4 px-3 gap-1 bg-[var(--bg-secondary)] flex-shrink-0">
-        <div className="flex items-center justify-between px-1 mb-2">
-          <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Apresentações</span>
-          <button
-            onClick={() => createPresentation('Nova Apresentação')}
-            className="w-5 h-5 rounded flex items-center justify-center hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-          >
-            <Plus size={13} />
-          </button>
-        </div>
-        {presentations.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => handleSetActivePresentation(p.id)}
-            className={cn(
-              'sidebar-item w-full text-left text-xs',
-              activePresentationId === p.id && 'active'
-            )}
-          >
-            <Presentation size={14} className="flex-shrink-0" />
-            <span className="truncate">{p.name}</span>
-          </button>
-        ))}
-      </aside>
-
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="h-12 border-b border-[var(--border)] flex items-center px-4 gap-3 flex-shrink-0">
           <div className="flex items-center gap-1">
