@@ -504,14 +504,8 @@ export const ElementPropertiesPanel = ({
                 {columns.length > 0 && (
                   <>
                     <div>
-                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna do rótulo</label>
-                      <select className="input text-xs py-1.5 h-8" value={db.xKey ?? columns[0]} onChange={(e) => updateBinding({ xKey: e.target.value })}>
-                        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna do valor</label>
-                      <select className="input text-xs py-1.5 h-8" value={db.yKey ?? columns[1] ?? columns[0]} onChange={(e) => updateBinding({ yKey: e.target.value })}>
+                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna de dados</label>
+                      <select className="input text-xs py-1.5 h-8" value={db.yKey ?? columns[0]} onChange={(e) => updateBinding({ yKey: e.target.value })}>
                         {columns.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
@@ -533,14 +527,8 @@ export const ElementPropertiesPanel = ({
                 {columns.length > 0 && (
                   <>
                     <div>
-                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna do rótulo</label>
-                      <select className="input text-xs py-1.5 h-8" value={db.xKey ?? columns[0]} onChange={(e) => updateBinding({ xKey: e.target.value })}>
-                        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna do valor</label>
-                      <select className="input text-xs py-1.5 h-8" value={db.yKey ?? columns[1] ?? columns[0]} onChange={(e) => updateBinding({ yKey: e.target.value })}>
+                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna de dados</label>
+                      <select className="input text-xs py-1.5 h-8" value={db.yKey ?? columns[0]} onChange={(e) => updateBinding({ yKey: e.target.value })}>
                         {columns.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>

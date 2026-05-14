@@ -68,6 +68,12 @@ const applyDateFilter = (
   })
 }
 
+const formatKpiValue = (sum: number): string => {
+  if (sum >= 1_000_000) return `${(sum / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}M`
+  if (sum >= 1_000) return `${(sum / 1_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}K`
+  return sum.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+}
+
 const resolveChartData = (element: SlideElement) => {
   const { dataBinding } = element
   const isSpreadsheet = (dataBinding?.source === 'spreadsheet' || dataBinding?.source === 'google_sheets') && (dataBinding.customData?.length ?? 0) > 0
@@ -156,12 +162,11 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
         dataBinding!.dateFrom,
         dataBinding!.dateTo,
       )
-      const row = filtered[0] ?? dataBinding!.customData![0]
-      const cols = Object.keys(row)
-      const yKey = dataBinding!.yKey ?? cols[1] ?? cols[0]
-      const xKey = dataBinding!.xKey ?? cols[0]
-      label = String(row[xKey] ?? '')
-      value = String(row[yKey] ?? '—')
+      const cols = Object.keys(dataBinding!.customData![0] ?? {})
+      const yKey = dataBinding!.yKey ?? cols[0]
+      const sum = filtered.reduce((acc, row) => acc + (Number(row[yKey]) || 0), 0)
+      label = yKey
+      value = filtered.length > 0 ? formatKpiValue(sum) : '—'
     } else {
       const metric = METRIC_MAP[dataBinding?.metric ?? 'sessions'] ?? KPI_METRICS[0]
       label = metric.label
