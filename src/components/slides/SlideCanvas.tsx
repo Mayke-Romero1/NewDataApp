@@ -3,6 +3,10 @@ import { Lock, ZoomIn, ZoomOut } from 'lucide-react'
 import type { Slide, SlideElement } from '@/types'
 import { SlideElementRenderer } from './SlideElementRenderer'
 
+const FONT_WEIGHT_CSS: Record<string, number> = {
+  normal: 400, medium: 500, semibold: 600, bold: 700,
+}
+
 const CANVAS_W = 1280
 const CANVAS_H = 720
 const ZOOM_STEP = 0.15
@@ -273,7 +277,7 @@ const ElementOverlay = ({
             background: 'rgba(10,12,30,0.9)',
             color: element.style.color ?? '#f0f2ff',
             fontSize: element.style.fontSize ?? 16,
-            fontWeight: element.style.fontWeight ?? 'normal',
+            fontWeight: element.style.fontWeight ? FONT_WEIGHT_CSS[element.style.fontWeight] ?? 400 : 400,
             textAlign: element.style.textAlign ?? 'left',
             padding: element.style.padding ?? 8,
             border: '2px solid #4f63f7', borderRadius: 4,
@@ -364,10 +368,87 @@ const StatusBar = ({ element, selectedCount }: { element: SlideElement | null; s
 
 interface ContextMenuState { x: number; y: number }
 
+interface Guide { axis: 'x' | 'y'; value: number }
+
+const GUIDE_TOLERANCE = 6
+
+const applyGridSnap = (patch: Partial<SlideElement>, size: number): Partial<SlideElement> => {
+  const snap = (v: number) => Math.round(v / size) * size
+  const result = { ...patch }
+  if (result.x !== undefined) result.x = snap(result.x)
+  if (result.y !== undefined) result.y = snap(result.y)
+  if (result.width !== undefined) result.width = Math.max(MIN_DIM, snap(result.width))
+  if (result.height !== undefined) result.height = Math.max(MIN_DIM, snap(result.height))
+  return result
+}
+
+const computeSmartGuides = (
+  element: SlideElement,
+  patch: Partial<SlideElement>,
+  allElements: SlideElement[],
+): { patch: Partial<SlideElement>; guides: Guide[] } => {
+  if (patch.x === undefined && patch.y === undefined) return { patch, guides: [] }
+  const newX = patch.x ?? element.x
+  const newY = patch.y ?? element.y
+  const nw = element.width
+  const nh = element.height
+  const others = allElements.filter((e) => e.id !== element.id && e.visibility)
+
+  let snappedX = newX
+  let snappedY = newY
+  const guides: Guide[] = []
+
+  const xCandidates: number[] = []
+  others.forEach((e) => { xCandidates.push(e.x, e.x + e.width, e.x + e.width / 2) })
+
+  const xPositions: Array<{ dragPos: number; offset: number }> = [
+    { dragPos: newX, offset: 0 },
+    { dragPos: newX + nw, offset: -nw },
+    { dragPos: newX + nw / 2, offset: -nw / 2 },
+  ]
+  for (const { dragPos, offset } of xPositions) {
+    for (const c of xCandidates) {
+      if (Math.abs(dragPos - c) <= GUIDE_TOLERANCE) {
+        snappedX = Math.round(c + offset)
+        guides.push({ axis: 'x', value: c })
+        break
+      }
+    }
+    if (guides.some((g) => g.axis === 'x')) break
+  }
+
+  const yCandidates: number[] = []
+  others.forEach((e) => { yCandidates.push(e.y, e.y + e.height, e.y + e.height / 2) })
+
+  const yPositions: Array<{ dragPos: number; offset: number }> = [
+    { dragPos: newY, offset: 0 },
+    { dragPos: newY + nh, offset: -nh },
+    { dragPos: newY + nh / 2, offset: -nh / 2 },
+  ]
+  for (const { dragPos, offset } of yPositions) {
+    for (const c of yCandidates) {
+      if (Math.abs(dragPos - c) <= GUIDE_TOLERANCE) {
+        snappedY = Math.round(c + offset)
+        guides.push({ axis: 'y', value: c })
+        break
+      }
+    }
+    if (guides.some((g) => g.axis === 'y')) break
+  }
+
+  const snappedPatch = { ...patch }
+  if (patch.x !== undefined) snappedPatch.x = snappedX
+  if (patch.y !== undefined) snappedPatch.y = snappedY
+  return { patch: snappedPatch, guides }
+}
+
 interface SlideCanvasProps {
   slide: Slide
   selectedElementIds: string[]
   cropElementId: string | null
+  gridEnabled: boolean
+  gridSize: number
+  smartGuidesEnabled: boolean
   onSelectElement: (id: string, isShift: boolean) => void
   onSelectNone: () => void
   onUpdateElement: (elementId: string, patch: Partial<SlideElement>) => void
@@ -384,6 +465,9 @@ export const SlideCanvas = ({
   slide,
   selectedElementIds,
   cropElementId,
+  gridEnabled,
+  gridSize,
+  smartGuidesEnabled,
   onSelectElement,
   onSelectNone,
   onUpdateElement,
@@ -401,6 +485,7 @@ export const SlideCanvas = ({
   const [userZoom, setUserZoom] = useState(1)
   const [editingElementId, setEditingElementId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const [activeGuides, setActiveGuides] = useState<Guide[]>([])
 
   const effectiveScale = baseScale * userZoom
   const effectiveScaleRef = useRef(effectiveScale)
@@ -438,6 +523,27 @@ export const SlideCanvas = ({
     window.addEventListener('click', close)
     return () => window.removeEventListener('click', close)
   }, [contextMenu])
+
+  useEffect(() => {
+    const onUp = () => setActiveGuides([])
+    window.addEventListener('pointerup', onUp)
+    return () => window.removeEventListener('pointerup', onUp)
+  }, [])
+
+  const makeElementUpdate = (element: SlideElement) => (patch: Partial<SlideElement>) => {
+    let finalPatch = patch
+    if (gridEnabled && (patch.x !== undefined || patch.y !== undefined || patch.width !== undefined || patch.height !== undefined)) {
+      finalPatch = applyGridSnap(finalPatch, gridSize)
+    }
+    if (smartGuidesEnabled && (patch.x !== undefined || patch.y !== undefined)) {
+      const { patch: snapped, guides } = computeSmartGuides(element, finalPatch, slide.elements)
+      finalPatch = snapped
+      setActiveGuides(guides)
+    } else if (patch.x !== undefined || patch.y !== undefined) {
+      setActiveGuides([])
+    }
+    onUpdateElement(element.id, finalPatch)
+  }
 
   const handleInteractionStart = (elementId: string, kind: 'drag' | 'resize' | 'rotate') => {
     onInteractionStart()
@@ -541,6 +647,26 @@ export const SlideCanvas = ({
             }}
             onClick={() => { onSelectNone(); setEditingElementId(null); if (cropElementId) onExitCrop() }}
           >
+            {gridEnabled && (
+              <svg style={{ position: 'absolute', inset: 0, width: CANVAS_W, height: CANVAS_H, pointerEvents: 'none', zIndex: 1 }}>
+                {Array.from({ length: Math.ceil(CANVAS_W / gridSize) }, (_, i) => (
+                  <line key={`v${i}`} x1={(i + 1) * gridSize} y1={0} x2={(i + 1) * gridSize} y2={CANVAS_H} stroke="rgba(255,255,255,0.07)" strokeWidth={0.5} />
+                ))}
+                {Array.from({ length: Math.ceil(CANVAS_H / gridSize) }, (_, i) => (
+                  <line key={`h${i}`} x1={0} y1={(i + 1) * gridSize} x2={CANVAS_W} y2={(i + 1) * gridSize} stroke="rgba(255,255,255,0.07)" strokeWidth={0.5} />
+                ))}
+              </svg>
+            )}
+
+            {activeGuides.map((guide, i) => (
+              <div key={i} style={{
+                position: 'absolute', pointerEvents: 'none', zIndex: 99998, background: '#ef4444',
+                ...(guide.axis === 'x'
+                  ? { left: guide.value, top: 0, width: 1, height: CANVAS_H }
+                  : { left: 0, top: guide.value, width: CANVAS_W, height: 1 }),
+              }} />
+            ))}
+
             {sorted.map((element) => {
               const isInMultiSelect = selectedElementIds.includes(element.id) && selectedElementIds.length > 1
               return (
@@ -556,7 +682,7 @@ export const SlideCanvas = ({
                   onSelect={(isShift) => onSelectElement(element.id, isShift)}
                   onEditStart={() => setEditingElementId(element.id)}
                   onEditEnd={(content) => { onUpdateElement(element.id, { content }); setEditingElementId(null) }}
-                  onUpdate={(patch) => onUpdateElement(element.id, patch)}
+                  onUpdate={makeElementUpdate(element)}
                   onInteractionStart={(kind) => handleInteractionStart(element.id, kind)}
                   onDragDelta={handleDragDelta}
                   onResizeDelta={(delta) => handleResizeDelta(element.id, delta)}

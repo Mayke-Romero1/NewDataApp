@@ -47,7 +47,7 @@ export const SlideEditorPanel = ({
   }
 
   return (
-    <aside className="w-56 border-l border-[var(--border)] p-4 bg-[var(--bg-secondary)] flex-shrink-0 overflow-y-auto">
+    <aside className="w-[280px] border-l border-[var(--border)] p-4 bg-[var(--bg-secondary)] flex-shrink-0 overflow-y-auto">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
           {selectedElement ? 'Elemento' : 'Slide'}

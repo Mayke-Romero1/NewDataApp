@@ -1,10 +1,11 @@
-import { Image } from 'lucide-react'
+import { Image as ImageIcon, TrendingUp, Users, DollarSign, Target, BarChart2 } from 'lucide-react'
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
   PieChart, Pie, Cell, ScatterChart, Scatter,
+  CartesianGrid, Legend,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
-import type { SlideElement } from '@/types'
+import type { SlideElement, SlideElementStyle } from '@/types'
 import { KPI_METRICS, SESSIONS_DATA, CHANNEL_DATA, AD_SPEND_DATA } from '@/lib/mockData'
 
 const CHART_COLORS = ['#4f63f7', '#22c55e', '#f59e0b', '#ef4444', '#748bff', '#8b93c8', '#06b6d4']
@@ -24,6 +25,27 @@ const TOOLTIP_STYLE = {
 }
 
 const AXIS_TICK = { fontSize: 10, fill: '#525878' }
+
+const FONT_WEIGHT_CSS: Record<string, number> = {
+  normal: 400, medium: 500, semibold: 600, bold: 700,
+}
+
+const KPI_ICON_MAP = {
+  trending_up: TrendingUp,
+  users: Users,
+  dollar: DollarSign,
+  target: Target,
+  bar_chart: BarChart2,
+}
+
+const resolveBackground = (style: SlideElementStyle, fallback?: string): string | undefined => {
+  if (style.gradient?.enabled) {
+    const [c1, c2] = style.gradient.colors
+    if (style.gradient.type === 'radial') return `radial-gradient(circle, ${c1}, ${c2})`
+    return `linear-gradient(${style.gradient.angle}deg, ${c1}, ${c2})`
+  }
+  return style.backgroundColor ?? fallback
+}
 
 interface SlideElementRendererProps {
   element: SlideElement
@@ -140,20 +162,33 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
       : style.textAlign === 'right' ? 'flex-end'
       : 'flex-start'
 
+    const textShadowCss = style.textShadow?.enabled
+      ? `${style.textShadow.offsetX}px ${style.textShadow.offsetY}px ${style.textShadow.blur}px ${style.textShadow.color}`
+      : undefined
+
+    const background = resolveBackground(style)
+    const fontFamily = style.fontFamily ?? 'DM Sans, sans-serif'
+    const fontWeightCss = style.fontWeight ? (FONT_WEIGHT_CSS[style.fontWeight] ?? 400) : 400
+
     return (
       <div
         style={{
           width: '100%',
           height: '100%',
-          backgroundColor: style.backgroundColor,
+          background,
+          backgroundColor: background ? undefined : style.backgroundColor,
           color: style.color ?? '#f0f2ff',
           fontSize: style.fontSize ?? 16,
-          fontWeight: style.fontWeight ?? 'normal',
+          fontWeight: fontWeightCss,
           fontStyle: style.fontStyle ?? 'normal',
+          fontFamily,
           textAlign: style.textAlign ?? 'left',
+          lineHeight: style.lineHeight ?? 1.3,
+          letterSpacing: style.letterSpacing != null ? `${style.letterSpacing}px` : undefined,
+          textShadow: textShadowCss,
           borderRadius: style.borderRadius,
           border: style.borderWidth
-            ? `${style.borderWidth}px solid ${style.borderColor}`
+            ? `${style.borderWidth}px ${style.borderStyle ?? 'solid'} ${style.borderColor}`
             : undefined,
           padding: style.padding ?? 8,
           display: 'flex',
@@ -161,8 +196,6 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
           justifyContent,
           whiteSpace: 'pre-wrap',
           overflow: 'hidden',
-          lineHeight: 1.3,
-          fontFamily: style.fontWeight === 'bold' ? 'Sora, sans-serif' : 'DM Sans, sans-serif',
         }}
       >
         {content ?? ''}
@@ -171,16 +204,24 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
   }
 
   if (type === 'shape') {
+    const background = resolveBackground(style, 'rgba(79,99,247,0.1)')
+    const boxShadowCss = style.boxShadow?.enabled
+      ? `${style.boxShadow.offsetX}px ${style.boxShadow.offsetY}px ${style.boxShadow.blur}px ${style.boxShadow.spread}px ${style.boxShadow.color}`
+      : undefined
+
     return (
       <div
         style={{
           width: '100%',
           height: '100%',
-          backgroundColor: style.backgroundColor ?? 'rgba(79,99,247,0.1)',
+          background,
+          backgroundColor: background ? undefined : (style.backgroundColor ?? 'rgba(79,99,247,0.1)'),
           borderRadius: style.borderRadius ?? 12,
           border: style.borderWidth
-            ? `${style.borderWidth}px solid ${style.borderColor}`
+            ? `${style.borderWidth}px ${style.borderStyle ?? 'solid'} ${style.borderColor}`
             : undefined,
+          opacity: style.fillOpacity != null ? style.fillOpacity / 100 : undefined,
+          boxShadow: boxShadowCss,
         }}
       />
     )
@@ -216,14 +257,32 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
       changeDirection = metric.changeDirection
     }
 
+    const kpiValueColor = dataBinding?.kpiValueColor ?? '#f0f2ff'
+    const changeColor = (() => {
+      if (dataBinding?.kpiChangeColorMode === 'custom' && dataBinding.kpiChangeColor) {
+        return dataBinding.kpiChangeColor
+      }
+      return changeDirection === 'up' ? '#22c55e' : '#ef4444'
+    })()
+
+    const KpiIconComponent = dataBinding?.kpiShowIcon && dataBinding?.kpiIcon
+      ? KPI_ICON_MAP[dataBinding.kpiIcon]
+      : null
+
+    const kpiBg = resolveBackground(style, 'rgba(255,255,255,0.04)')
+    const kpiBorder = style.borderWidth
+      ? `${style.borderWidth}px ${style.borderStyle ?? 'solid'} ${style.borderColor}`
+      : '1px solid rgba(255,255,255,0.08)'
+
     return (
       <div
         style={{
           width: '100%',
           height: '100%',
-          backgroundColor: style.backgroundColor ?? 'rgba(255,255,255,0.04)',
+          background: kpiBg,
+          backgroundColor: kpiBg ? undefined : 'rgba(255,255,255,0.04)',
           borderRadius: style.borderRadius ?? 12,
-          border: '1px solid rgba(255,255,255,0.08)',
+          border: kpiBorder,
           padding: 24,
           display: 'flex',
           flexDirection: 'column',
@@ -231,16 +290,15 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
           gap: 8,
         }}
       >
-        <p style={{ fontSize: 12, color: '#8b93c8', margin: 0 }}>{label}</p>
-        <p style={{ fontSize: 32, fontWeight: 700, color: '#f0f2ff', margin: 0, fontFamily: 'Sora, sans-serif' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {KpiIconComponent && <KpiIconComponent size={16} color="#8b93c8" />}
+          <p style={{ fontSize: 12, color: '#8b93c8', margin: 0 }}>{label}</p>
+        </div>
+        <p style={{ fontSize: 32, fontWeight: 700, color: kpiValueColor, margin: 0, fontFamily: 'Sora, sans-serif' }}>
           {value}
         </p>
         {change !== undefined && changeDirection && (
-          <p style={{
-            fontSize: 12,
-            color: changeDirection === 'up' ? '#22c55e' : '#ef4444',
-            margin: 0,
-          }}>
+          <p style={{ fontSize: 12, color: changeColor, margin: 0 }}>
             {change > 0 ? '+' : ''}{change}% vs anterior
           </p>
         )}
@@ -252,6 +310,29 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
     const chartType = dataBinding?.chartType ?? 'area'
     const gradId = `grad-${element.id}`
     const { data, xKey, yKey } = resolveChartData(element)
+    const primaryColor = dataBinding?.primaryColor ?? '#4f63f7'
+    const secondaryColor = dataBinding?.secondaryColor ?? '#22c55e'
+    const showAxes = dataBinding?.showAxes !== false
+    const showGrid = dataBinding?.showGrid === true
+    const showTooltipEl = dataBinding?.showTooltip !== false
+    const showLegend = dataBinding?.showLegend === true
+    const isClassic = dataBinding?.chartStyle === 'classic'
+    const chartTitle = dataBinding?.chartTitle
+
+    const chartWrapper = (children: React.ReactNode) => (
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        {chartTitle && (
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#c4c8e8', margin: '8px 8px 4px', fontFamily: 'Sora, sans-serif', flexShrink: 0 }}>
+            {chartTitle}
+          </p>
+        )}
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            {children as React.ReactElement}
+          </ResponsiveContainer>
+        </div>
+      </div>
+    )
 
     if (chartType === 'pie' || chartType === 'donut') {
       const isSpreadsheet = (dataBinding?.source === 'spreadsheet' || dataBinding?.source === 'google_sheets') && (dataBinding.customData?.length ?? 0) > 0
@@ -263,29 +344,26 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
           }))
         : CHANNEL_DATA
 
-      return (
-        <div style={{ width: '100%', height: '100%' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={pieData}
-                dataKey="value"
-                nameKey="name"
-                innerRadius={chartType === 'donut' ? '38%' : 0}
-                outerRadius="65%"
-                labelLine={false}
-                label={({ name, percent }) =>
-                  percent > 0.05 ? `${name} ${Math.round(percent * 100)}%` : ''
-                }
-              >
-                {pieData.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip contentStyle={TOOLTIP_STYLE} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+      return chartWrapper(
+        <PieChart>
+          <Pie
+            data={pieData}
+            dataKey="value"
+            nameKey="name"
+            innerRadius={chartType === 'donut' ? '38%' : 0}
+            outerRadius="65%"
+            labelLine={false}
+            label={({ name, percent }) =>
+              percent > 0.05 ? `${name} ${Math.round(percent * 100)}%` : ''
+            }
+          >
+            {pieData.map((entry, i) => (
+              <Cell key={i} fill={entry.color} />
+            ))}
+          </Pie>
+          {showTooltipEl && <Tooltip contentStyle={TOOLTIP_STYLE} />}
+          {showLegend && <Legend wrapperStyle={{ fontSize: 10, color: '#8b93c8' }} />}
+        </PieChart>
       )
     }
 
@@ -297,17 +375,15 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
       const hXKey = isSpreadsheet ? xKey : 'platform'
       const hYKey = isSpreadsheet ? yKey : 'spend'
 
-      return (
-        <div style={{ width: '100%', height: '100%' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={hData} layout="vertical">
-              <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey={hXKey} tick={AXIS_TICK} axisLine={false} tickLine={false} width={100} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} />
-              <Bar dataKey={hYKey} fill="#4f63f7" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+      return chartWrapper(
+        <BarChart data={hData} layout="vertical">
+          {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />}
+          {showAxes && <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} />}
+          {showAxes && <YAxis type="category" dataKey={hXKey} tick={AXIS_TICK} axisLine={false} tickLine={false} width={100} />}
+          {showTooltipEl && <Tooltip contentStyle={TOOLTIP_STYLE} />}
+          {showLegend && <Legend wrapperStyle={{ fontSize: 10, color: '#8b93c8' }} />}
+          <Bar dataKey={hYKey} fill={primaryColor} radius={[0, 4, 4, 0]} />
+        </BarChart>
       )
     }
 
@@ -317,64 +393,62 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
         ? data.map((row) => ({ x: Number(row[xKey]) || 0, y: Number(row[yKey]) || 0 }))
         : SESSIONS_DATA.map((d) => ({ x: d.sessions, y: d.conversions }))
 
-      return (
-        <div style={{ width: '100%', height: '100%' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart>
-              <XAxis dataKey="x" type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} name={xKey} />
-              <YAxis dataKey="y" type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} name={yKey} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ strokeDasharray: '3 3' }} />
-              <Scatter data={sData} fill="#4f63f7" />
-            </ScatterChart>
-          </ResponsiveContainer>
-        </div>
+      return chartWrapper(
+        <ScatterChart>
+          {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />}
+          {showAxes && <XAxis dataKey="x" type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} name={xKey} />}
+          {showAxes && <YAxis dataKey="y" type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} name={yKey} />}
+          {showTooltipEl && <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ strokeDasharray: '3 3' }} />}
+          <Scatter data={sData} fill={primaryColor} />
+        </ScatterChart>
       )
     }
 
     if (chartType === 'bar') {
-      return (
-        <div style={{ width: '100%', height: '100%' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data}>
-              <XAxis dataKey={xKey} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} />
-              <Bar dataKey={yKey} fill="#4f63f7" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+      return chartWrapper(
+        <BarChart data={data}>
+          {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />}
+          {showAxes && <XAxis dataKey={xKey} tick={AXIS_TICK} axisLine={false} tickLine={false} />}
+          {showAxes && <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} />}
+          {showTooltipEl && <Tooltip contentStyle={TOOLTIP_STYLE} />}
+          {showLegend && <Legend wrapperStyle={{ fontSize: 10, color: '#8b93c8' }} />}
+          <Bar dataKey={yKey} fill={primaryColor} radius={[4, 4, 0, 0]} />
+        </BarChart>
       )
     }
 
     if (chartType === 'line') {
-      return (
-        <div style={{ width: '100%', height: '100%' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data}>
-              <XAxis dataKey={xKey} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} />
-              <Line type="monotone" dataKey={yKey} stroke="#4f63f7" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+      return chartWrapper(
+        <LineChart data={data}>
+          {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />}
+          {showAxes && <XAxis dataKey={xKey} tick={AXIS_TICK} axisLine={false} tickLine={false} />}
+          {showAxes && <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} />}
+          {showTooltipEl && <Tooltip contentStyle={TOOLTIP_STYLE} />}
+          {showLegend && <Legend wrapperStyle={{ fontSize: 10, color: '#8b93c8' }} />}
+          <Line type="monotone" dataKey={yKey} stroke={primaryColor} strokeWidth={isClassic ? 1.5 : 2} dot={!isClassic} />
+        </LineChart>
       )
     }
 
-    return (
-      <div style={{ width: '100%', height: '100%' }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data}>
-            <defs>
-              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#4f63f7" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#4f63f7" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey={xKey} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} />
-            <Area type="monotone" dataKey={yKey} stroke="#4f63f7" fill={`url(#${gradId})`} strokeWidth={2} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+    return chartWrapper(
+      <AreaChart data={data}>
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={primaryColor} stopOpacity={isClassic ? 0.15 : 0.3} />
+            <stop offset="95%" stopColor={primaryColor} stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id={`${gradId}-2`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={secondaryColor} stopOpacity={0.2} />
+            <stop offset="95%" stopColor={secondaryColor} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />}
+        {showAxes && <XAxis dataKey={xKey} tick={AXIS_TICK} axisLine={false} tickLine={false} />}
+        {showAxes && <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} />}
+        {showTooltipEl && <Tooltip contentStyle={TOOLTIP_STYLE} />}
+        {showLegend && <Legend wrapperStyle={{ fontSize: 10, color: '#8b93c8' }} />}
+        <Area type="monotone" dataKey={yKey} stroke={primaryColor} fill={`url(#${gradId})`} strokeWidth={isClassic ? 1.5 : 2} />
+      </AreaChart>
     )
   }
 
@@ -411,7 +485,7 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
           gap: 8,
         }}
       >
-        <Image size={24} color="rgba(255,255,255,0.25)" />
+        <ImageIcon size={24} color="rgba(255,255,255,0.25)" />
         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>Nenhuma imagem</span>
       </div>
     )

@@ -100,15 +100,41 @@ export interface SlideElementStyle {
   backgroundColor?: string
   color?: string
   fontSize?: number
-  fontWeight?: 'normal' | 'bold'
+  fontFamily?: string
+  fontWeight?: 'normal' | 'medium' | 'semibold' | 'bold'
   fontStyle?: 'normal' | 'italic'
-  textAlign?: 'left' | 'center' | 'right'
+  textAlign?: 'left' | 'center' | 'right' | 'justify'
+  lineHeight?: number
+  letterSpacing?: number
   borderRadius?: number
   borderColor?: string
   borderWidth?: number
+  borderStyle?: 'solid' | 'dashed' | 'dotted'
   padding?: number
   cropX?: number
   cropY?: number
+  fillOpacity?: number
+  gradient?: {
+    enabled: boolean
+    type: 'linear' | 'radial'
+    angle: number
+    colors: [string, string]
+  }
+  textShadow?: {
+    enabled: boolean
+    color: string
+    blur: number
+    offsetX: number
+    offsetY: number
+  }
+  boxShadow?: {
+    enabled: boolean
+    color: string
+    blur: number
+    spread: number
+    offsetX: number
+    offsetY: number
+  }
 }
 
 export interface SlideDataBinding {
@@ -126,6 +152,20 @@ export interface SlideDataBinding {
   valueFormat?: 'number' | 'currency' | 'percent'
   decimalPlaces?: 0 | 1 | 2
   compact?: boolean
+  chartTitle?: string
+  chartStyle?: 'modern' | 'classic'
+  showLegend?: boolean
+  showAxes?: boolean
+  showGrid?: boolean
+  showTooltip?: boolean
+  showLabels?: boolean
+  primaryColor?: string
+  secondaryColor?: string
+  kpiValueColor?: string
+  kpiChangeColorMode?: 'auto' | 'custom'
+  kpiChangeColor?: string
+  kpiShowIcon?: boolean
+  kpiIcon?: 'trending_up' | 'users' | 'dollar' | 'target' | 'bar_chart'
 }
 
 export interface SlideElement {

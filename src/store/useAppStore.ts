@@ -56,6 +56,14 @@ interface AppState {
   toggleSidebar: () => void
   activeApp: 'dashboard' | 'slides' | 'settings' | 'clients'
   setActiveApp: (app: AppState['activeApp']) => void
+
+  // Canvas tools
+  gridEnabled: boolean
+  gridSize: number
+  smartGuidesEnabled: boolean
+  setGridEnabled: (v: boolean) => void
+  setGridSize: (v: number) => void
+  setSmartGuidesEnabled: (v: boolean) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -419,4 +427,11 @@ export const useAppStore = create<AppState>((set) => ({
 
   activeApp: 'dashboard',
   setActiveApp: (app) => set({ activeApp: app }),
+
+  gridEnabled: false,
+  gridSize: 20,
+  smartGuidesEnabled: true,
+  setGridEnabled: (v) => set({ gridEnabled: v }),
+  setGridSize: (v) => set({ gridSize: Math.max(4, v) }),
+  setSmartGuidesEnabled: (v) => set({ smartGuidesEnabled: v }),
 }))

@@ -1,6 +1,10 @@
 import {
   Download, Share2, Play, X, ChevronLeft, ChevronRight,
   Type, Image, BarChart2, Layers,
+  AlignStartVertical, AlignCenterVertical, AlignEndVertical,
+  AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal,
+  AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter,
+  Grid, Magnet,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
@@ -10,6 +14,7 @@ import { SlideCanvas } from '@/components/slides/SlideCanvas'
 import { SlideThumbnailStrip } from '@/components/slides/SlideThumbnailStrip'
 import { SlideEditorPanel } from '@/components/slides/SlideEditorPanel'
 import { SlideElementRenderer } from '@/components/slides/SlideElementRenderer'
+import { cn } from '@/lib/utils'
 
 const CANVAS_W = 1280
 const CANVAS_H = 720
@@ -237,6 +242,11 @@ export const SlidesPage = () => {
     updateMultipleElements,
     groupElements,
     ungroupElements,
+    gridEnabled,
+    gridSize,
+    smartGuidesEnabled,
+    setGridEnabled,
+    setSmartGuidesEnabled,
   } = useAppStore()
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
@@ -386,6 +396,42 @@ export const SlidesPage = () => {
     }
   }
 
+  const handleAlign = (type: 'left' | 'centerH' | 'right' | 'top' | 'middleV' | 'bottom' | 'distributeH' | 'distributeV') => {
+    if (!activePresentation || !activeSlide || selectedElementIds.length < 2) return
+    const els = activeSlide.elements.filter((el) => selectedElementIds.includes(el.id))
+    const minX = Math.min(...els.map((el) => el.x))
+    const maxX = Math.max(...els.map((el) => el.x + el.width))
+    const minY = Math.min(...els.map((el) => el.y))
+    const maxY = Math.max(...els.map((el) => el.y + el.height))
+    const cx = (minX + maxX) / 2
+    const cy = (minY + maxY) / 2
+
+    let patches: Array<{ elementId: string; patch: Partial<SlideElement> }> = []
+
+    if (type === 'left') patches = els.map((el) => ({ elementId: el.id, patch: { x: minX } }))
+    else if (type === 'centerH') patches = els.map((el) => ({ elementId: el.id, patch: { x: Math.round(cx - el.width / 2) } }))
+    else if (type === 'right') patches = els.map((el) => ({ elementId: el.id, patch: { x: maxX - el.width } }))
+    else if (type === 'top') patches = els.map((el) => ({ elementId: el.id, patch: { y: minY } }))
+    else if (type === 'middleV') patches = els.map((el) => ({ elementId: el.id, patch: { y: Math.round(cy - el.height / 2) } }))
+    else if (type === 'bottom') patches = els.map((el) => ({ elementId: el.id, patch: { y: maxY - el.height } }))
+    else if (type === 'distributeH' && els.length >= 3) {
+      const sorted = [...els].sort((a, b) => a.x - b.x)
+      const totalW = sorted.reduce((s, el) => s + el.width, 0)
+      const gap = (maxX - minX - totalW) / (sorted.length - 1)
+      let cur = minX
+      patches = sorted.map((el) => { const x = Math.round(cur); cur += el.width + gap; return { elementId: el.id, patch: { x } } })
+    }
+    else if (type === 'distributeV' && els.length >= 3) {
+      const sorted = [...els].sort((a, b) => a.y - b.y)
+      const totalH = sorted.reduce((s, el) => s + el.height, 0)
+      const gap = (maxY - minY - totalH) / (sorted.length - 1)
+      let cur = minY
+      patches = sorted.map((el) => { const y = Math.round(cur); cur += el.height + gap; return { elementId: el.id, patch: { y } } })
+    }
+
+    if (patches.length > 0) { pushUndo(); handleUpdateMultiple(patches) }
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const activeEl = document.activeElement?.tagName
     const isInputFocused = activeEl === 'INPUT' || activeEl === 'TEXTAREA' || activeEl === 'SELECT'
@@ -481,8 +527,8 @@ export const SlidesPage = () => {
       )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="h-12 border-b border-[var(--border)] flex items-center px-4 gap-3 flex-shrink-0">
-          <div className="flex items-center gap-1">
+        <div className="h-12 border-b border-[var(--border)] flex items-center px-4 gap-2 flex-shrink-0 overflow-x-auto">
+          <div className="flex items-center gap-1 flex-shrink-0">
             {ELEMENT_TOOLS.map(({ icon: Icon, label, type }) => (
               <button
                 key={type}
@@ -495,7 +541,63 @@ export const SlidesPage = () => {
             ))}
           </div>
 
-          <div className="w-px h-5 bg-[var(--border)]" />
+          <div className="w-px h-5 bg-[var(--border)] flex-shrink-0" />
+
+          {selectedElementIds.length >= 2 && (
+            <>
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                {([
+                  ['left', AlignStartVertical, 'Alinhar à esquerda'],
+                  ['centerH', AlignCenterVertical, 'Centralizar horizontal'],
+                  ['right', AlignEndVertical, 'Alinhar à direita'],
+                  ['top', AlignStartHorizontal, 'Alinhar ao topo'],
+                  ['middleV', AlignCenterHorizontal, 'Centralizar vertical'],
+                  ['bottom', AlignEndHorizontal, 'Alinhar à base'],
+                  ['distributeH', AlignHorizontalDistributeCenter, 'Distribuir horizontalmente'],
+                  ['distributeV', AlignVerticalDistributeCenter, 'Distribuir verticalmente'],
+                ] as [Parameters<typeof handleAlign>[0], React.ElementType, string][]).map(([type, Icon, title]) => (
+                  <button
+                    key={type}
+                    title={title}
+                    onClick={() => handleAlign(type)}
+                    className="w-7 h-7 flex items-center justify-center rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                  >
+                    <Icon size={14} />
+                  </button>
+                ))}
+              </div>
+              <div className="w-px h-5 bg-[var(--border)] flex-shrink-0" />
+            </>
+          )}
+
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              title={gridEnabled ? 'Desativar grade' : 'Ativar grade'}
+              onClick={() => setGridEnabled(!gridEnabled)}
+              className={cn(
+                'w-7 h-7 flex items-center justify-center rounded transition-colors',
+                gridEnabled
+                  ? 'bg-[rgba(79,99,247,0.2)] text-[#748bff]'
+                  : 'hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              )}
+            >
+              <Grid size={14} />
+            </button>
+            <button
+              title={smartGuidesEnabled ? 'Desativar guias inteligentes' : 'Ativar guias inteligentes'}
+              onClick={() => setSmartGuidesEnabled(!smartGuidesEnabled)}
+              className={cn(
+                'w-7 h-7 flex items-center justify-center rounded transition-colors',
+                smartGuidesEnabled
+                  ? 'bg-[rgba(79,99,247,0.2)] text-[#748bff]'
+                  : 'hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              )}
+            >
+              <Magnet size={14} />
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-[var(--border)] flex-shrink-0" />
           <div className="flex-1" />
 
           <div className="flex items-center gap-2">
@@ -537,6 +639,9 @@ export const SlidesPage = () => {
             slide={activeSlide}
             selectedElementIds={selectedElementIds}
             cropElementId={cropElementId}
+            gridEnabled={gridEnabled}
+            gridSize={gridSize}
+            smartGuidesEnabled={smartGuidesEnabled}
             onSelectElement={handleSelectElement}
             onSelectNone={() => { setSelectedElementIds([]); setCropElementId(null) }}
             onUpdateElement={handleUpdateElement}
