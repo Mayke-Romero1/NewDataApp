@@ -2,7 +2,7 @@ import {
   BringToFront, SendToBack, Lock, Unlock, Eye, EyeOff,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Bold, Italic, Underline, Strikethrough, Droplet, Eraser,
-  Trash2, Upload, X, RefreshCw, CheckCircle2, AlertCircle,
+  Trash2, Upload, X,
   Type, Square, Image as ImageIcon, BarChart2, TrendingUp,
   Maximize2, RotateCw, Layers, Palette, Hash, ChevronDown,
 } from 'lucide-react'
@@ -187,53 +187,6 @@ const GradientControls = ({
   )
 }
 
-type DataSource = 'demo' | 'spreadsheet' | 'google_sheets'
-
-const SOURCE_OPTIONS: { value: DataSource; label: string }[] = [
-  { value: 'demo', label: 'Demo' },
-  { value: 'spreadsheet', label: 'CSV' },
-  { value: 'google_sheets', label: 'Sheets' },
-]
-
-const SourceToggle = ({
-  value, onChange,
-}: { value: DataSource; onChange: (v: DataSource) => void }) => (
-  <div className="flex gap-1">
-    {SOURCE_OPTIONS.map((opt) => (
-      <button
-        key={opt.value}
-        onClick={() => onChange(opt.value)}
-        className={cn(
-          'flex-1 h-7 text-[10px] rounded border transition-colors',
-          value === opt.value
-            ? 'bg-[rgba(79,99,247,0.2)] border-[#4f63f7] text-[#748bff]'
-            : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[rgba(255,255,255,0.2)]'
-        )}
-      >
-        {opt.label}
-      </button>
-    ))}
-  </div>
-)
-
-const parseCSV = (text: string): Record<string, unknown>[] => {
-  const lines = text.trim().split(/\r?\n/)
-  if (lines.length < 2) return []
-  const firstLine = lines[0]
-  const delimiter = (firstLine.split(';').length > firstLine.split(',').length) ? ';' : ','
-  const headers = firstLine.split(delimiter).map((h) => h.trim().replace(/^"|"$/g, ''))
-  return lines.slice(1).map((line) => {
-    const values = line.split(delimiter).map((v) => v.trim().replace(/^"|"$/g, ''))
-    return Object.fromEntries(headers.map((h, i) => [h, values[i] ?? '']))
-  })
-}
-
-const extractSheetInfo = (url: string): { id: string; gid: string } | null => {
-  const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)
-  if (!idMatch) return null
-  const gidMatch = url.match(/[?&#]gid=(\d+)/)
-  return { id: idMatch[1], gid: gidMatch?.[1] ?? '0' }
-}
 
 const CHART_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: 'area', label: 'Área' },
@@ -264,89 +217,13 @@ const KPI_ICON_OPTIONS: Array<{ value: NonNullable<SlideDataBinding['kpiIcon']>;
   { value: 'bar_chart', label: 'Gráfico' },
 ]
 
-const DateFilterSection = ({
-  columns, dateColumn, dateFrom, dateTo, onUpdate,
-}: {
-  columns: string[]
-  dateColumn: string
-  dateFrom: string
-  dateTo: string
-  onUpdate: (patch: Partial<SlideDataBinding>) => void
-}) => {
-  const hasFilter = dateColumn || dateFrom || dateTo
-  return (
-    <div className="space-y-2 pt-2 border-t border-[var(--border)]">
-      <div className="flex items-center justify-between">
-        <label className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider">Filtro por data</label>
-        {hasFilter && (
-          <button onClick={() => onUpdate({ dateColumn: undefined, dateFrom: undefined, dateTo: undefined })}
-            className="text-[9px] text-[var(--text-muted)] hover:text-red-400 transition-colors">
-            Limpar
-          </button>
-        )}
-      </div>
-      <div>
-        <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna de data</label>
-        <select className="input text-xs py-1.5 h-8" value={dateColumn}
-          onChange={(e) => onUpdate({ dateColumn: e.target.value || undefined })}>
-          <option value="">— nenhuma —</option>
-          {columns.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-      </div>
-      <div className="grid grid-cols-2 gap-1.5">
-        <div>
-          <label className="text-[10px] text-[var(--text-muted)] block mb-1">De</label>
-          <input type="date" className="input text-xs h-7 py-0 px-2 w-full" value={dateFrom}
-            onChange={(e) => onUpdate({ dateFrom: e.target.value || undefined })} />
-        </div>
-        <div>
-          <label className="text-[10px] text-[var(--text-muted)] block mb-1">Até</label>
-          <input type="date" className="input text-xs h-7 py-0 px-2 w-full" value={dateTo}
-            onChange={(e) => onUpdate({ dateTo: e.target.value || undefined })} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const ColSelectors = ({
-  columns, xKey, yKey, isPieOrDonut, onXChange, onYChange,
-}: {
-  columns: string[]; xKey: string; yKey: string; isPieOrDonut: boolean
-  onXChange: (v: string) => void; onYChange: (v: string) => void
-}) => (
-  <>
-    <div>
-      <label className="text-[10px] text-[var(--text-muted)] block mb-1">
-        {isPieOrDonut ? 'Coluna de rótulos' : 'Coluna X'}
-      </label>
-      <select className="input text-xs py-1.5 h-8" value={xKey} onChange={(e) => onXChange(e.target.value)}>
-        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
-      </select>
-    </div>
-    <div>
-      <label className="text-[10px] text-[var(--text-muted)] block mb-1">
-        {isPieOrDonut ? 'Coluna de valores' : 'Coluna Y'}
-      </label>
-      <select className="input text-xs py-1.5 h-8" value={yKey} onChange={(e) => onYChange(e.target.value)}>
-        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
-      </select>
-    </div>
-  </>
-)
 
 export const ElementPropertiesPanel = ({
   element, onUpdate, onDelete, onReorder,
 }: ElementPropertiesPanelProps) => {
   const { style, dataBinding } = element
   const db = dataBinding ?? {} as SlideDataBinding
-  const source = (db.source ?? 'demo') as DataSource
-  const customData = db.customData ?? []
-  const columns = customData.length > 0 ? Object.keys(customData[0]) : []
 
-  const [sheetsUrlInput, setSheetsUrlInput] = useState(db.sheetsUrl ?? '')
-  const [fetchLoading, setFetchLoading] = useState(false)
-  const [fetchError, setFetchError] = useState<string | null>(null)
   const [alignDropOpen, setAlignDropOpen] = useState(false)
   const alignDropRef = useRef<HTMLDivElement>(null)
 
@@ -394,20 +271,6 @@ export const ElementPropertiesPanel = ({
   ]
   const currentAlignOption = ALIGN_OPTIONS.find((o) => o.value === (style.textAlign ?? 'left')) ?? ALIGN_OPTIONS[0]
 
-  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const parsed = parseCSV((ev.target?.result as string) ?? '')
-      if (parsed.length === 0) return
-      const cols = Object.keys(parsed[0])
-      updateBinding({ source: 'spreadsheet', customData: parsed, xKey: cols[0], yKey: cols[1] ?? cols[0] })
-    }
-    reader.readAsText(file)
-    e.target.value = ''
-  }
-
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -417,56 +280,6 @@ export const ElementPropertiesPanel = ({
     e.target.value = ''
   }
 
-  const handleSheetsConnect = async () => {
-    const url = sheetsUrlInput.trim()
-    if (!url) return
-    const info = extractSheetInfo(url)
-    if (!info) { setFetchError('URL inválida.'); return }
-    setFetchLoading(true)
-    setFetchError(null)
-    try {
-      const exportUrl = `https://docs.google.com/spreadsheets/d/${info.id}/export?format=csv&gid=${info.gid}`
-      const res = await fetch(exportUrl)
-      if (!res.ok) throw new Error('Planilha inacessível. Verifique se está compartilhada.')
-      const text = await res.text()
-      const rows = parseCSV(text)
-      if (rows.length === 0) throw new Error('Nenhum dado encontrado.')
-      const cols = Object.keys(rows[0])
-      updateBinding({ source: 'google_sheets', customData: rows, sheetsUrl: url, xKey: cols[0], yKey: cols[1] ?? cols[0] })
-    } catch (err) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        setFetchError('Erro CORS. Publique via Arquivo → Compartilhar → Publicar na web.')
-      } else {
-        setFetchError(err instanceof Error ? err.message : 'Falha ao conectar.')
-      }
-    } finally {
-      setFetchLoading(false)
-    }
-  }
-
-  const sheetsSection = (
-    <div className="space-y-2">
-      <div className="flex gap-1">
-        <input type="text" className="input text-xs h-8 flex-1 min-w-0" placeholder="URL da planilha…"
-          value={sheetsUrlInput} onChange={(e) => setSheetsUrlInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleSheetsConnect() }} />
-        <button onClick={handleSheetsConnect} disabled={fetchLoading || !sheetsUrlInput.trim()}
-          className="btn-secondary text-xs h-8 py-0 px-2.5 flex-shrink-0 disabled:opacity-40">
-          {fetchLoading ? <RefreshCw size={12} className="animate-spin" /> : 'Conectar'}
-        </button>
-      </div>
-      {fetchError && (
-        <div className="flex items-start gap-1.5 text-[10px] text-red-400 leading-tight">
-          <AlertCircle size={12} className="flex-shrink-0 mt-0.5" /><span>{fetchError}</span>
-        </div>
-      )}
-      {!fetchError && source === 'google_sheets' && customData.length > 0 && (
-        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400">
-          <CheckCircle2 size={12} /><span>{customData.length} linhas carregadas</span>
-        </div>
-      )}
-    </div>
-  )
 
   return (
     <div className="space-y-0">
@@ -834,62 +647,15 @@ export const ElementPropertiesPanel = ({
         <>
           <AccordionSection icon={TrendingUp} label="Dados KPI" defaultOpen>
             <div>
-              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Fonte de dados</label>
-              <SourceToggle value={source} onChange={(s) => updateBinding({ source: s })} />
+              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Métrica</label>
+              <select className="input text-xs py-1.5 h-8" value={db.metric ?? 'sessions'}
+                onChange={(e) => updateBinding({ metric: e.target.value })}>
+                <option value="sessions">Sessões</option>
+                <option value="conversions">Conversões</option>
+                <option value="cost">Custo Total Ads</option>
+                <option value="roas">ROAS Médio</option>
+              </select>
             </div>
-
-            {source === 'demo' && (
-              <div>
-                <label className="text-[10px] text-[var(--text-muted)] block mb-1">Métrica</label>
-                <select className="input text-xs py-1.5 h-8" value={db.metric ?? 'sessions'}
-                  onChange={(e) => updateBinding({ metric: e.target.value })}>
-                  <option value="sessions">Sessões</option>
-                  <option value="conversions">Conversões</option>
-                  <option value="cost">Custo Total Ads</option>
-                  <option value="roas">ROAS Médio</option>
-                </select>
-              </div>
-            )}
-
-            {source === 'spreadsheet' && (
-              <>
-                <label className="btn-secondary text-xs h-8 py-0 w-full cursor-pointer flex items-center justify-center gap-1.5">
-                  <Upload size={12} />
-                  {customData.length > 0 ? `${customData.length} linhas importadas` : 'Importar CSV'}
-                  <input type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
-                </label>
-                {columns.length > 0 && (
-                  <>
-                    <div>
-                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna de dados</label>
-                      <select className="input text-xs py-1.5 h-8" value={db.yKey ?? columns[0]}
-                        onChange={(e) => updateBinding({ yKey: e.target.value })}>
-                        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <DateFilterSection columns={columns} dateColumn={db.dateColumn ?? ''} dateFrom={db.dateFrom ?? ''} dateTo={db.dateTo ?? ''} onUpdate={updateBinding} />
-                  </>
-                )}
-              </>
-            )}
-
-            {source === 'google_sheets' && (
-              <>
-                {sheetsSection}
-                {columns.length > 0 && (
-                  <>
-                    <div>
-                      <label className="text-[10px] text-[var(--text-muted)] block mb-1">Coluna de dados</label>
-                      <select className="input text-xs py-1.5 h-8" value={db.yKey ?? columns[0]}
-                        onChange={(e) => updateBinding({ yKey: e.target.value })}>
-                        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <DateFilterSection columns={columns} dateColumn={db.dateColumn ?? ''} dateFrom={db.dateFrom ?? ''} dateTo={db.dateTo ?? ''} onUpdate={updateBinding} />
-                  </>
-                )}
-              </>
-            )}
           </AccordionSection>
 
           <AccordionSection icon={Hash} label="Formato KPI" defaultOpen>
@@ -1002,53 +768,14 @@ export const ElementPropertiesPanel = ({
             </div>
 
             <div>
-              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Fonte de dados</label>
-              <SourceToggle value={source} onChange={(s) => updateBinding({ source: s })} />
+              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Período</label>
+              <select className="input text-xs py-1.5 h-8" value={db.dateRange ?? 'last_30d'}
+                onChange={(e) => updateBinding({ dateRange: e.target.value })}>
+                <option value="last_7d">Últimos 7 dias</option>
+                <option value="last_30d">Últimos 30 dias</option>
+                <option value="last_90d">Últimos 90 dias</option>
+              </select>
             </div>
-
-            {source === 'demo' && (
-              <div>
-                <label className="text-[10px] text-[var(--text-muted)] block mb-1">Período</label>
-                <select className="input text-xs py-1.5 h-8" value={db.dateRange ?? 'last_30d'}
-                  onChange={(e) => updateBinding({ dateRange: e.target.value })}>
-                  <option value="last_7d">Últimos 7 dias</option>
-                  <option value="last_30d">Últimos 30 dias</option>
-                  <option value="last_90d">Últimos 90 dias</option>
-                </select>
-              </div>
-            )}
-
-            {source === 'spreadsheet' && (
-              <>
-                <label className="btn-secondary text-xs h-8 py-0 w-full cursor-pointer flex items-center justify-center gap-1.5">
-                  <Upload size={12} />
-                  {customData.length > 0 ? `${customData.length} linhas importadas` : 'Importar CSV'}
-                  <input type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
-                </label>
-                {columns.length > 0 && (
-                  <>
-                    <ColSelectors columns={columns} xKey={db.xKey ?? columns[0]} yKey={db.yKey ?? columns[1] ?? columns[0]}
-                      isPieOrDonut={db.chartType === 'pie' || db.chartType === 'donut'}
-                      onXChange={(v) => updateBinding({ xKey: v })} onYChange={(v) => updateBinding({ yKey: v })} />
-                    <DateFilterSection columns={columns} dateColumn={db.dateColumn ?? ''} dateFrom={db.dateFrom ?? ''} dateTo={db.dateTo ?? ''} onUpdate={updateBinding} />
-                  </>
-                )}
-              </>
-            )}
-
-            {source === 'google_sheets' && (
-              <>
-                {sheetsSection}
-                {columns.length > 0 && (
-                  <>
-                    <ColSelectors columns={columns} xKey={db.xKey ?? columns[0]} yKey={db.yKey ?? columns[1] ?? columns[0]}
-                      isPieOrDonut={db.chartType === 'pie' || db.chartType === 'donut'}
-                      onXChange={(v) => updateBinding({ xKey: v })} onYChange={(v) => updateBinding({ yKey: v })} />
-                    <DateFilterSection columns={columns} dateColumn={db.dateColumn ?? ''} dateFrom={db.dateFrom ?? ''} dateTo={db.dateTo ?? ''} onUpdate={updateBinding} />
-                  </>
-                )}
-              </>
-            )}
           </AccordionSection>
 
           <AccordionSection icon={Palette} label="Aparência do Gráfico" defaultOpen>

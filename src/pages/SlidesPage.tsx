@@ -16,6 +16,7 @@ import { SlideEditorPanel } from '@/components/slides/SlideEditorPanel'
 import { SlideElementRenderer } from '@/components/slides/SlideElementRenderer'
 import { IntegrationPromptModal } from '@/components/slides/IntegrationPromptModal'
 import { SlideDataPanel } from '@/components/slides/SlideDataPanel'
+import { NewSlideModal } from '@/components/slides/NewSlideModal'
 import { cn } from '@/lib/utils'
 
 const CANVAS_W = 1280
@@ -265,6 +266,7 @@ export const SlidesPage = () => {
   const [isEditorCollapsed, setIsEditorCollapsed] = useState(false)
   const [isPresentMode, setIsPresentMode] = useState(false)
   const [showIntegrationModal, setShowIntegrationModal] = useState(false)
+  const [newSlideModalOpen, setNewSlideModalOpen] = useState(false)
 
   const activePresentation = presentations.find((p) => p.id === activePresentationId) ?? presentations[0]
   const activeSlide = activePresentation?.slides[activeSlideIndex] ?? activePresentation?.slides[0]
@@ -299,7 +301,7 @@ export const SlidesPage = () => {
     setSelectedElementIds([kpiEl.id])
   }
 
-  const handleAddSlide = () => {
+  const createBlankSlide = () => {
     if (!activePresentation) return
     const newSlide: Slide = {
       id: `slide-${Date.now()}`,
@@ -310,6 +312,10 @@ export const SlidesPage = () => {
     addSlide(activePresentation.id, newSlide)
     setActiveSlideIndex(activePresentation.slides.length)
     setSelectedElementIds([])
+  }
+
+  const handleAddSlide = () => {
+    setNewSlideModalOpen(true)
   }
 
   const handleSelectSlide = (index: number) => {
@@ -563,6 +569,12 @@ export const SlidesPage = () => {
           onClose={() => setShowIntegrationModal(false)}
         />
       )}
+
+      <NewSlideModal
+        open={newSlideModalOpen}
+        onClose={() => setNewSlideModalOpen(false)}
+        onCreateSlide={createBlankSlide}
+      />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="h-12 border-b border-[var(--border)] flex items-center px-4 gap-2 flex-shrink-0 overflow-x-auto">
