@@ -185,6 +185,7 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
           textAlign: style.textAlign ?? 'left',
           lineHeight: style.lineHeight ?? 1.3,
           letterSpacing: style.letterSpacing != null ? `${style.letterSpacing}px` : undefined,
+          textDecoration: style.textDecoration ?? 'none',
           textShadow: textShadowCss,
           borderRadius: style.borderRadius,
           border: style.borderWidth

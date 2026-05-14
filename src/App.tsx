@@ -7,6 +7,7 @@ import { SlidesPage } from '@/pages/SlidesPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { ClientsPage } from '@/pages/ClientsPage'
 import { ClientDetailPage } from '@/pages/ClientDetailPage'
+import { IntegrationsPage } from '@/pages/IntegrationsPage'
 import { useAppStore } from '@/store/useAppStore'
 
 function AppContent() {
@@ -22,6 +23,7 @@ function AppContent() {
           {activeApp === 'clients' && activeClientId !== null && <ClientDetailPage />}
           {activeApp === 'dashboard' && <DashboardPage />}
           {activeApp === 'slides' && <SlidesPage />}
+          {activeApp === 'integrations' && <IntegrationsPage />}
           {activeApp === 'settings' && <SettingsPage />}
         </main>
       </div>

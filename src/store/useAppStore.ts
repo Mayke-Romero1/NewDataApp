@@ -54,7 +54,7 @@ interface AppState {
   // UI State
   sidebarCollapsed: boolean
   toggleSidebar: () => void
-  activeApp: 'dashboard' | 'slides' | 'settings' | 'clients'
+  activeApp: 'dashboard' | 'slides' | 'settings' | 'clients' | 'integrations'
   setActiveApp: (app: AppState['activeApp']) => void
 
   // Canvas tools
