@@ -48,6 +48,8 @@ interface AppState {
   reorderElement: (presentationId: string, slideId: string, elementId: string, direction: 'front' | 'back') => void
   replaceSlideElements: (presentationId: string, slideId: string, elements: SlideElement[]) => void
   updateMultipleElements: (presentationId: string, slideId: string, patches: Array<{ elementId: string; patch: Partial<SlideElement> }>) => void
+  groupElements: (presentationId: string, slideId: string, elementIds: string[]) => void
+  ungroupElements: (presentationId: string, slideId: string, groupId: string) => void
 
   // UI State
   sidebarCollapsed: boolean
@@ -367,6 +369,44 @@ export const useAppStore = create<AppState>((set) => ({
                 const match = patches.find((pc) => pc.elementId === el.id)
                 return match ? { ...el, ...match.patch } : el
               }),
+            }
+          ),
+        }
+      ),
+    })),
+
+  groupElements: (presentationId, slideId, elementIds) => {
+    const groupId = `group-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    set((state) => ({
+      presentations: state.presentations.map((p) =>
+        p.id !== presentationId ? p : {
+          ...p,
+          updatedAt: new Date(),
+          slides: p.slides.map((s) =>
+            s.id !== slideId ? s : {
+              ...s,
+              elements: s.elements.map((el) =>
+                elementIds.includes(el.id) ? { ...el, groupId } : el
+              ),
+            }
+          ),
+        }
+      ),
+    }))
+  },
+
+  ungroupElements: (presentationId, slideId, groupId) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) =>
+        p.id !== presentationId ? p : {
+          ...p,
+          updatedAt: new Date(),
+          slides: p.slides.map((s) =>
+            s.id !== slideId ? s : {
+              ...s,
+              elements: s.elements.map((el) =>
+                el.groupId === groupId ? { ...el, groupId: undefined } : el
+              ),
             }
           ),
         }

@@ -68,9 +68,11 @@ const SourceToggle = ({
 const parseCSV = (text: string): Record<string, unknown>[] => {
   const lines = text.trim().split(/\r?\n/)
   if (lines.length < 2) return []
-  const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''))
+  const firstLine = lines[0]
+  const delimiter = (firstLine.split(';').length > firstLine.split(',').length) ? ';' : ','
+  const headers = firstLine.split(delimiter).map((h) => h.trim().replace(/^"|"$/g, ''))
   return lines.slice(1).map((line) => {
-    const values = line.split(',').map((v) => v.trim().replace(/^"|"$/g, ''))
+    const values = line.split(delimiter).map((v) => v.trim().replace(/^"|"$/g, ''))
     return Object.fromEntries(headers.map((h, i) => [h, values[i] ?? '']))
   })
 }

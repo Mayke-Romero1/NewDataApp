@@ -235,6 +235,8 @@ export const SlidesPage = () => {
     reorderElement,
     replaceSlideElements,
     updateMultipleElements,
+    groupElements,
+    ungroupElements,
   } = useAppStore()
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
@@ -340,13 +342,47 @@ export const SlidesPage = () => {
     updateSlide(activePresentation.id, activeSlide.id, patch)
   }
 
+  const expandGroupSelection = (ids: string[]): string[] => {
+    if (!activeSlide) return ids
+    const groupIds = ids
+      .map((id) => activeSlide.elements.find((el) => el.id === id)?.groupId)
+      .filter((g): g is string => !!g)
+    if (groupIds.length === 0) return ids
+    const groupMembers = activeSlide.elements
+      .filter((el) => el.groupId && groupIds.includes(el.groupId))
+      .map((el) => el.id)
+    return [...new Set([...ids, ...groupMembers])]
+  }
+
   const handleSelectElement = (id: string, isShift: boolean) => {
+    const el = activeSlide?.elements.find((e) => e.id === id)
     if (isShift) {
-      setSelectedElementIds((prev) =>
-        prev.includes(id) ? prev.filter((eid) => eid !== id) : [...prev, id]
-      )
+      setSelectedElementIds((prev) => {
+        if (prev.includes(id)) return prev.filter((eid) => eid !== id)
+        const base = [...prev, id]
+        return el?.groupId ? expandGroupSelection(base) : base
+      })
     } else {
-      setSelectedElementIds([id])
+      if (el?.groupId) {
+        const groupMembers = activeSlide!.elements
+          .filter((e) => e.groupId === el.groupId)
+          .map((e) => e.id)
+        setSelectedElementIds(groupMembers)
+      } else {
+        setSelectedElementIds([id])
+      }
+    }
+  }
+
+  const handleGroupElements = () => {
+    if (!activePresentation || !activeSlide || selectedElementIds.length < 2) return
+    const selectedEls = activeSlide.elements.filter((el) => selectedElementIds.includes(el.id))
+    const existingGroupId = selectedEls[0]?.groupId
+    const allSameGroup = existingGroupId && selectedEls.every((el) => el.groupId === existingGroupId)
+    if (allSameGroup) {
+      ungroupElements(activePresentation.id, activeSlide.id, existingGroupId)
+    } else {
+      groupElements(activePresentation.id, activeSlide.id, selectedElementIds)
     }
   }
 
@@ -408,6 +444,11 @@ export const SlidesPage = () => {
         setUndoHistory((prev) => prev.slice(0, -1))
         replaceSlideElements(activePresentation.id, activeSlide.id, snapshot)
         setSelectedElementIds([])
+        return
+      }
+      if ((e.key === 'g' || e.key === 'G') && !isInputFocused) {
+        e.preventDefault()
+        handleGroupElements()
         return
       }
       return
@@ -503,6 +544,17 @@ export const SlidesPage = () => {
             onInteractionStart={pushUndo}
             onEnterCrop={(id) => setCropElementId(id)}
             onExitCrop={() => setCropElementId(null)}
+            onGroupElements={handleGroupElements}
+            onDeleteSelected={() => {
+              if (!activePresentation || !activeSlide || selectedElementIds.length === 0) return
+              pushUndo()
+              selectedElementIds.forEach((id) => removeElement(activePresentation.id, activeSlide.id, id))
+              setSelectedElementIds([])
+            }}
+            onCopySelected={() => {
+              const selected = activeSlide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? []
+              if (selected.length > 0) setClipboard(selected)
+            }}
           />
 
           <SlideEditorPanel

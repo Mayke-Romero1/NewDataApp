@@ -143,6 +143,7 @@ export interface SlideElement {
   content?: string
   style: SlideElementStyle
   dataBinding?: SlideDataBinding
+  groupId?: string
 }
 
 export interface Slide {

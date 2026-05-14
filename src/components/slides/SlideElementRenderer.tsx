@@ -68,6 +68,21 @@ const applyDateFilter = (
   })
 }
 
+const parseNumber = (v: unknown): number => {
+  if (typeof v === 'number') return isNaN(v) ? 0 : v
+  const s = String(v ?? '').trim()
+  if (!s) return 0
+  const direct = Number(s)
+  if (!isNaN(direct)) return direct
+  const noThousands = s.replace(/,/g, '')
+  const noThousandsNum = Number(noThousands)
+  if (!isNaN(noThousandsNum)) return noThousandsNum
+  const brFormat = s.replace(/\./g, '').replace(',', '.')
+  const brNum = Number(brFormat)
+  if (!isNaN(brNum)) return brNum
+  return 0
+}
+
 const formatKpiValue = (
   sum: number,
   valueFormat?: 'number' | 'currency' | 'percent',
@@ -188,7 +203,7 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
       )
       const cols = Object.keys(dataBinding!.customData![0] ?? {})
       const yKey = dataBinding!.yKey ?? cols[0]
-      const sum = filtered.reduce((acc, row) => acc + (Number(row[yKey]) || 0), 0)
+      const sum = filtered.reduce((acc, row) => acc + parseNumber(row[yKey]), 0)
       label = yKey
       value = filtered.length > 0
         ? formatKpiValue(sum, dataBinding?.valueFormat, dataBinding?.decimalPlaces, dataBinding?.compact)

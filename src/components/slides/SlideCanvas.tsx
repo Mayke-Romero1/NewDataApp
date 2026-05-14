@@ -59,6 +59,8 @@ const applyRotation = (s: RotateState, ptrX: number, ptrY: number): number => {
   return Math.round((s.startRotation + current - s.startAngle + 360) % 360)
 }
 
+interface ResizeDelta { dx: number; dy: number; dw: number; dh: number }
+
 interface ElementOverlayProps {
   element: SlideElement
   isSelected: boolean
@@ -73,7 +75,9 @@ interface ElementOverlayProps {
   onUpdate: (patch: Partial<SlideElement>) => void
   onInteractionStart: (kind: 'drag' | 'resize' | 'rotate') => void
   onDragDelta: (dx: number, dy: number) => void
+  onResizeDelta: (delta: ResizeDelta) => void
   onEnterCrop: () => void
+  onContextMenu: (x: number, y: number) => void
 }
 
 const ElementOverlay = ({
@@ -90,7 +94,9 @@ const ElementOverlay = ({
   onUpdate,
   onInteractionStart,
   onDragDelta,
+  onResizeDelta,
   onEnterCrop,
+  onContextMenu,
 }: ElementOverlayProps) => {
   const interactionRef = useRef<Interaction | null>(null)
   const didDragRef = useRef(false)
@@ -99,10 +105,7 @@ const ElementOverlay = ({
     if (element.locked || isEditing) return
     e.stopPropagation()
 
-    if (e.shiftKey) {
-      onSelect(true)
-      return
-    }
+    if (e.shiftKey) { onSelect(true); return }
 
     didDragRef.current = false
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -118,7 +121,6 @@ const ElementOverlay = ({
     }
 
     onInteractionStart('drag')
-
     if (!isSelected) onSelect(false)
     interactionRef.current = { kind: 'drag', px: e.clientX, py: e.clientY, ex: element.x, ey: element.y }
   }
@@ -138,9 +140,13 @@ const ElementOverlay = ({
     } else if (s.kind === 'crop') {
       const dx = (e.clientX - s.px) / sc
       const dy = (e.clientY - s.py) / sc
-      const newX = Math.max(0, Math.min(100, s.startCropX + (dx / element.width) * 100))
-      const newY = Math.max(0, Math.min(100, s.startCropY + (dy / element.height) * 100))
-      onUpdate({ style: { ...element.style, cropX: newX, cropY: newY } })
+      onUpdate({
+        style: {
+          ...element.style,
+          cropX: Math.max(0, Math.min(100, s.startCropX + (dx / element.width) * 100)),
+          cropY: Math.max(0, Math.min(100, s.startCropY + (dy / element.height) * 100)),
+        },
+      })
     }
   }
 
@@ -158,7 +164,16 @@ const ElementOverlay = ({
   const handleResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const s = interactionRef.current
     if (s?.kind !== 'resize') return
-    onUpdate(applyResize(s, e.clientX, e.clientY, scaleRef.current))
+    const patch = applyResize(s, e.clientX, e.clientY, scaleRef.current)
+    onUpdate(patch)
+    if (isInMultiSelect) {
+      onResizeDelta({
+        dx: (patch.x ?? s.ex) - s.ex,
+        dy: (patch.y ?? s.ey) - s.ey,
+        dw: (patch.width ?? s.ew) - s.ew,
+        dh: (patch.height ?? s.eh) - s.eh,
+      })
+    }
   }
 
   const handleRotateDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -185,9 +200,7 @@ const ElementOverlay = ({
 
   const clearInteraction = () => {
     const s = interactionRef.current
-    if (s?.kind === 'drag' && isInMultiSelect && !didDragRef.current) {
-      onSelect(false)
-    }
+    if (s?.kind === 'drag' && isInMultiSelect && !didDragRef.current) onSelect(false)
     interactionRef.current = null
     didDragRef.current = false
   }
@@ -198,31 +211,24 @@ const ElementOverlay = ({
     <div
       style={{
         position: 'absolute',
-        left: element.x,
-        top: element.y,
-        width: element.width,
-        height: element.height,
+        left: element.x, top: element.y,
+        width: element.width, height: element.height,
         transform: `rotate(${element.rotation}deg)`,
         opacity: element.opacity,
-        cursor: element.locked ? 'default'
-          : isCropMode ? 'crosshair'
-          : isEditing ? 'text'
-          : 'move',
+        cursor: element.locked ? 'default' : isCropMode ? 'crosshair' : isEditing ? 'text' : 'move',
         userSelect: 'none',
         outline: isSelected && !isEditing ? `2px solid ${outlineColor}` : 'none',
         outlineOffset: 2,
         zIndex: element.zIndex,
       }}
-      onClick={(e) => {
-        e.stopPropagation()
-        if (!e.shiftKey && !isInMultiSelect) onSelect(false)
-      }}
+      onClick={(e) => { e.stopPropagation(); if (!e.shiftKey && !isInMultiSelect) onSelect(false) }}
       onDoubleClick={(e) => {
         e.stopPropagation()
         if (element.locked) return
         if (element.type === 'text') onEditStart()
         else if (element.type === 'image') onEnterCrop()
       }}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(e.clientX, e.clientY) }}
       onPointerDown={handleDragDown}
       onPointerMove={handlePointerMove}
       onPointerUp={clearInteraction}
@@ -232,6 +238,17 @@ const ElementOverlay = ({
       {element.locked && (
         <div style={{ position: 'absolute', top: 4, right: 4, pointerEvents: 'none' }}>
           <Lock size={11} color="rgba(255,255,255,0.55)" />
+        </div>
+      )}
+
+      {element.groupId && !isEditing && (
+        <div style={{
+          position: 'absolute', top: 2, left: 2,
+          background: 'rgba(79,99,247,0.6)', borderRadius: 3,
+          padding: '1px 4px', fontSize: 8, color: '#fff',
+          pointerEvents: 'none', lineHeight: 1.4,
+        }}>
+          G
         </div>
       )}
 
@@ -310,25 +327,13 @@ const ZoomControls = ({ zoom, onZoomIn, onZoomOut, onReset }: {
     background: 'rgba(15,17,40,0.9)', border: '1px solid rgba(255,255,255,0.1)',
     borderRadius: 8, padding: '3px 6px', backdropFilter: 'blur(8px)',
   }}>
-    <button
-      onClick={onZoomOut}
-      title="Zoom out (Ctrl+-)"
-      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: '#8b93c8' }}
-    >
+    <button onClick={onZoomOut} title="Zoom out (Ctrl+-)" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: '#8b93c8' }}>
       <ZoomOut size={13} />
     </button>
-    <button
-      onClick={onReset}
-      title="Reset zoom (Ctrl+0)"
-      style={{ fontSize: 11, color: '#8b93c8', background: 'transparent', border: 'none', cursor: 'pointer', minWidth: 38, textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}
-    >
+    <button onClick={onReset} title="Reset zoom (Ctrl+0)" style={{ fontSize: 11, color: '#8b93c8', background: 'transparent', border: 'none', cursor: 'pointer', minWidth: 38, textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}>
       {Math.round(zoom * 100)}%
     </button>
-    <button
-      onClick={onZoomIn}
-      title="Zoom in (Ctrl+=)"
-      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: '#8b93c8' }}
-    >
+    <button onClick={onZoomIn} title="Zoom in (Ctrl+=)" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: '#8b93c8' }}>
       <ZoomIn size={13} />
     </button>
   </div>
@@ -336,10 +341,8 @@ const ZoomControls = ({ zoom, onZoomIn, onZoomOut, onReset }: {
 
 const StatusBar = ({ element, selectedCount }: { element: SlideElement | null; selectedCount: number }) => (
   <div style={{
-    height: 28, padding: '0 16px',
-    display: 'flex', alignItems: 'center', gap: 20,
-    fontSize: 11, color: '#525878',
-    borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
+    height: 28, padding: '0 16px', display: 'flex', alignItems: 'center', gap: 20,
+    fontSize: 11, color: '#525878', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
   }}>
     {selectedCount > 1 ? (
       <span style={{ color: '#8b93c8' }}>{selectedCount} elementos selecionados</span>
@@ -349,16 +352,17 @@ const StatusBar = ({ element, selectedCount }: { element: SlideElement | null; s
         <span>Y: <span style={{ color: '#8b93c8' }}>{element.y}</span></span>
         <span>W: <span style={{ color: '#8b93c8' }}>{element.width}</span></span>
         <span>H: <span style={{ color: '#8b93c8' }}>{element.height}</span></span>
-        {element.rotation !== 0 && (
-          <span>R: <span style={{ color: '#8b93c8' }}>{element.rotation}°</span></span>
-        )}
+        {element.rotation !== 0 && <span>R: <span style={{ color: '#8b93c8' }}>{element.rotation}°</span></span>}
         {element.locked && <span style={{ color: '#f87171' }}>Bloqueado</span>}
+        {element.groupId && <span style={{ color: '#748bff' }}>Agrupado</span>}
       </>
     ) : (
       <span>{CANVAS_W} × {CANVAS_H} px</span>
     )}
   </div>
 )
+
+interface ContextMenuState { x: number; y: number }
 
 interface SlideCanvasProps {
   slide: Slide
@@ -371,6 +375,9 @@ interface SlideCanvasProps {
   onInteractionStart: () => void
   onEnterCrop: (id: string) => void
   onExitCrop: () => void
+  onGroupElements: () => void
+  onDeleteSelected: () => void
+  onCopySelected: () => void
 }
 
 export const SlideCanvas = ({
@@ -384,16 +391,21 @@ export const SlideCanvas = ({
   onInteractionStart,
   onEnterCrop,
   onExitCrop,
+  onGroupElements,
+  onDeleteSelected,
+  onCopySelected,
 }: SlideCanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasInnerRef = useRef<HTMLDivElement>(null)
   const [baseScale, setBaseScale] = useState(1)
   const [userZoom, setUserZoom] = useState(1)
   const [editingElementId, setEditingElementId] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
 
   const effectiveScale = baseScale * userZoom
   const effectiveScaleRef = useRef(effectiveScale)
   const multiDragStartRef = useRef<Map<string, { x: number; y: number }> | null>(null)
+  const multiResizeStartRef = useRef<Map<string, { x: number; y: number; w: number; h: number }> | null>(null)
 
   useEffect(() => { effectiveScaleRef.current = effectiveScale }, [effectiveScale])
 
@@ -412,32 +424,41 @@ export const SlideCanvas = ({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return
-      if (e.key === '=' || e.key === '+') {
-        e.preventDefault()
-        setUserZoom((z) => Math.min(ZOOM_MAX, z + ZOOM_STEP))
-      } else if (e.key === '-') {
-        e.preventDefault()
-        setUserZoom((z) => Math.max(ZOOM_MIN, z - ZOOM_STEP))
-      } else if (e.key === '0') {
-        e.preventDefault()
-        setUserZoom(1)
-      }
+      if (e.key === '=' || e.key === '+') { e.preventDefault(); setUserZoom((z) => Math.min(ZOOM_MAX, z + ZOOM_STEP)) }
+      else if (e.key === '-') { e.preventDefault(); setUserZoom((z) => Math.max(ZOOM_MIN, z - ZOOM_STEP)) }
+      else if (e.key === '0') { e.preventDefault(); setUserZoom(1) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [contextMenu])
+
   const handleInteractionStart = (elementId: string, kind: 'drag' | 'resize' | 'rotate') => {
     onInteractionStart()
-    if (kind === 'drag' && selectedElementIds.length > 1 && selectedElementIds.includes(elementId)) {
+    const isMulti = selectedElementIds.length > 1 && selectedElementIds.includes(elementId)
+    if (kind === 'drag' && isMulti) {
       multiDragStartRef.current = new Map(
         selectedElementIds.map((id) => {
           const el = slide.elements.find((e) => e.id === id)
           return [id, { x: el?.x ?? 0, y: el?.y ?? 0 }]
         })
       )
+    } else if (kind === 'resize' && isMulti) {
+      multiResizeStartRef.current = new Map(
+        selectedElementIds.map((id) => {
+          const el = slide.elements.find((e) => e.id === id)
+          return [id, { x: el?.x ?? 0, y: el?.y ?? 0, w: el?.width ?? 0, h: el?.height ?? 0 }]
+        })
+      )
     } else {
       multiDragStartRef.current = null
+      multiResizeStartRef.current = null
     }
   }
 
@@ -450,10 +471,23 @@ export const SlideCanvas = ({
     onUpdateMultiple(patches)
   }
 
-  const sorted = [...slide.elements]
-    .filter((el) => el.visibility)
-    .sort((a, b) => a.zIndex - b.zIndex)
+  const handleResizeDelta = (originElementId: string, delta: ResizeDelta) => {
+    if (!multiResizeStartRef.current) return
+    const patches = Array.from(multiResizeStartRef.current.entries())
+      .filter(([id]) => id !== originElementId)
+      .map(([id, start]) => ({
+        elementId: id,
+        patch: {
+          x: Math.round(start.x + delta.dx),
+          y: Math.round(start.y + delta.dy),
+          width: Math.max(MIN_DIM, Math.round(start.w + delta.dw)),
+          height: Math.max(MIN_DIM, Math.round(start.h + delta.dh)),
+        } as Partial<SlideElement>,
+      }))
+    if (patches.length > 0) onUpdateMultiple(patches)
+  }
 
+  const sorted = [...slide.elements].filter((el) => el.visibility).sort((a, b) => a.zIndex - b.zIndex)
   const selectedElement = slide.elements.find((el) => el.id === selectedElementIds[selectedElementIds.length - 1]) ?? null
 
   const boundingBox = selectedElementIds.length > 1
@@ -462,13 +496,24 @@ export const SlideCanvas = ({
         if (els.length === 0) return null
         const xs = els.flatMap((el) => [el.x, el.x + el.width])
         const ys = els.flatMap((el) => [el.y, el.y + el.height])
-        return {
-          x: Math.min(...xs), y: Math.min(...ys),
-          width: Math.max(...xs) - Math.min(...xs),
-          height: Math.max(...ys) - Math.min(...ys),
-        }
+        return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) }
       })()
     : null
+
+  const selectedEls = slide.elements.filter((el) => selectedElementIds.includes(el.id))
+  const existingGroupId = selectedEls[0]?.groupId
+  const allSameGroup = !!existingGroupId && selectedEls.length > 1 && selectedEls.every((el) => el.groupId === existingGroupId)
+  const canGroup = selectedElementIds.length > 1
+  const canUngroup = allSameGroup
+
+  const contextMenuItems = [
+    ...(canUngroup ? [{ label: 'Desagrupar (Ctrl+G)', action: () => { onGroupElements(); setContextMenu(null) } }] : []),
+    ...(canGroup && !canUngroup ? [{ label: 'Agrupar (Ctrl+G)', action: () => { onGroupElements(); setContextMenu(null) } }] : []),
+    ...(selectedElementIds.length > 0 ? [
+      { label: 'Copiar (Ctrl+C)', action: () => { onCopySelected(); setContextMenu(null) } },
+      { label: 'Excluir (Del)', action: () => { onDeleteSelected(); setContextMenu(null) }, danger: true },
+    ] : []),
+  ]
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--bg-primary)]">
@@ -481,14 +526,11 @@ export const SlideCanvas = ({
           backgroundSize: '24px 24px',
         }}
       >
-        <div
-          style={{
-            width: CANVAS_W * effectiveScale,
-            height: CANVAS_H * effectiveScale,
-            position: 'relative', flexShrink: 0, borderRadius: 12,
-            overflow: 'hidden', boxShadow: '0 8px 48px rgba(0,0,0,0.5)',
-          }}
-        >
+        <div style={{
+          width: CANVAS_W * effectiveScale, height: CANVAS_H * effectiveScale,
+          position: 'relative', flexShrink: 0, borderRadius: 12,
+          overflow: 'hidden', boxShadow: '0 8px 48px rgba(0,0,0,0.5)',
+        }}>
           <div
             ref={canvasInnerRef}
             style={{
@@ -513,32 +555,28 @@ export const SlideCanvas = ({
                   canvasRef={canvasInnerRef}
                   onSelect={(isShift) => onSelectElement(element.id, isShift)}
                   onEditStart={() => setEditingElementId(element.id)}
-                  onEditEnd={(content) => {
-                    onUpdateElement(element.id, { content })
-                    setEditingElementId(null)
-                  }}
+                  onEditEnd={(content) => { onUpdateElement(element.id, { content }); setEditingElementId(null) }}
                   onUpdate={(patch) => onUpdateElement(element.id, patch)}
                   onInteractionStart={(kind) => handleInteractionStart(element.id, kind)}
                   onDragDelta={handleDragDelta}
+                  onResizeDelta={(delta) => handleResizeDelta(element.id, delta)}
                   onEnterCrop={() => onEnterCrop(element.id)}
+                  onContextMenu={(x, y) => {
+                    if (!selectedElementIds.includes(element.id)) onSelectElement(element.id, false)
+                    setContextMenu({ x, y })
+                  }}
                 />
               )
             })}
 
             {boundingBox && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: boundingBox.x - 6,
-                  top: boundingBox.y - 6,
-                  width: boundingBox.width + 12,
-                  height: boundingBox.height + 12,
-                  border: '1.5px dashed rgba(79,99,247,0.5)',
-                  borderRadius: 4,
-                  pointerEvents: 'none',
-                  zIndex: 99999,
-                }}
-              />
+              <div style={{
+                position: 'absolute',
+                left: boundingBox.x - 6, top: boundingBox.y - 6,
+                width: boundingBox.width + 12, height: boundingBox.height + 12,
+                border: '1.5px dashed rgba(79,99,247,0.5)',
+                borderRadius: 4, pointerEvents: 'none', zIndex: 99999,
+              }} />
             )}
           </div>
         </div>
@@ -552,6 +590,40 @@ export const SlideCanvas = ({
       </div>
 
       <StatusBar element={selectedElement} selectedCount={selectedElementIds.length} />
+
+      {contextMenu && contextMenuItems.length > 0 && (
+        <div
+          style={{
+            position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 9999,
+            background: '#1a1d2e', border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 8, padding: 4, minWidth: 200,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {contextMenuItems.map((item, idx) => (
+            <button
+              key={idx}
+              onClick={item.action}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 12px', borderRadius: 6, background: 'transparent',
+                border: 'none', cursor: 'pointer', textAlign: 'left',
+                fontSize: 12, fontFamily: 'DM Sans, sans-serif',
+                color: item.danger ? '#f87171' : '#c4c8e8',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = item.danger ? 'rgba(248,113,113,0.1)' : 'rgba(255,255,255,0.06)'
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'transparent'
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
