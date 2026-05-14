@@ -68,10 +68,34 @@ const applyDateFilter = (
   })
 }
 
-const formatKpiValue = (sum: number): string => {
-  if (sum >= 1_000_000) return `${(sum / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}M`
-  if (sum >= 1_000) return `${(sum / 1_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}K`
-  return sum.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+const formatKpiValue = (
+  sum: number,
+  valueFormat?: 'number' | 'currency' | 'percent',
+  decimalPlaces?: 0 | 1 | 2,
+  compact?: boolean,
+): string => {
+  const digits = decimalPlaces ?? 0
+  const useCompact = compact !== false
+
+  if (useCompact) {
+    if (sum >= 1_000_000) {
+      const n = (sum / 1_000_000).toLocaleString('pt-BR', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+      if (valueFormat === 'currency') return `R$ ${n}M`
+      if (valueFormat === 'percent') return `${n}M%`
+      return `${n}M`
+    }
+    if (sum >= 1_000) {
+      const n = (sum / 1_000).toLocaleString('pt-BR', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+      if (valueFormat === 'currency') return `R$ ${n}K`
+      if (valueFormat === 'percent') return `${n}K%`
+      return `${n}K`
+    }
+  }
+
+  const n = sum.toLocaleString('pt-BR', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+  if (valueFormat === 'currency') return `R$ ${n}`
+  if (valueFormat === 'percent') return `${n}%`
+  return n
 }
 
 const resolveChartData = (element: SlideElement) => {
@@ -166,7 +190,9 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
       const yKey = dataBinding!.yKey ?? cols[0]
       const sum = filtered.reduce((acc, row) => acc + (Number(row[yKey]) || 0), 0)
       label = yKey
-      value = filtered.length > 0 ? formatKpiValue(sum) : '—'
+      value = filtered.length > 0
+        ? formatKpiValue(sum, dataBinding?.valueFormat, dataBinding?.decimalPlaces, dataBinding?.compact)
+        : '—'
     } else {
       const metric = METRIC_MAP[dataBinding?.metric ?? 'sessions'] ?? KPI_METRICS[0]
       label = metric.label
@@ -346,6 +372,7 @@ export const SlideElementRenderer = ({ element }: SlideElementRendererProps) => 
             width: '100%',
             height: '100%',
             objectFit: 'cover',
+            objectPosition: `${style.cropX ?? 50}% ${style.cropY ?? 50}%`,
             borderRadius: style.borderRadius ?? 8,
             display: 'block',
           }}

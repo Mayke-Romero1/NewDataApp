@@ -38,10 +38,16 @@ interface AppState {
   // Slide & Element editing
   addSlide: (presentationId: string, slide: Slide) => void
   updateSlide: (presentationId: string, slideId: string, patch: { background?: string; notes?: string }) => void
+  duplicateSlide: (presentationId: string, index: number) => void
+  deleteSlide: (presentationId: string, index: number) => void
+  reorderSlide: (presentationId: string, from: number, to: number) => void
+  toggleSlideHidden: (presentationId: string, index: number) => void
   addElement: (presentationId: string, slideId: string, element: SlideElement) => void
   updateElement: (presentationId: string, slideId: string, elementId: string, patch: Partial<SlideElement>) => void
   removeElement: (presentationId: string, slideId: string, elementId: string) => void
   reorderElement: (presentationId: string, slideId: string, elementId: string, direction: 'front' | 'back') => void
+  replaceSlideElements: (presentationId: string, slideId: string, elements: SlideElement[]) => void
+  updateMultipleElements: (presentationId: string, slideId: string, patches: Array<{ elementId: string; patch: Partial<SlideElement> }>) => void
 
   // UI State
   sidebarCollapsed: boolean
@@ -215,6 +221,57 @@ export const useAppStore = create<AppState>((set) => ({
       ),
     })),
 
+  duplicateSlide: (presentationId, index) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) => {
+        if (p.id !== presentationId) return p
+        const original = p.slides[index]
+        if (!original) return p
+        const copy: Slide = {
+          ...original,
+          id: `slide-${Date.now()}`,
+          elements: original.elements.map((el) => ({
+            ...el,
+            id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          })),
+        }
+        const newSlides = [...p.slides.slice(0, index + 1), copy, ...p.slides.slice(index + 1)]
+        return { ...p, slides: newSlides, updatedAt: new Date() }
+      }),
+    })),
+
+  deleteSlide: (presentationId, index) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) => {
+        if (p.id !== presentationId) return p
+        if (p.slides.length <= 1) return p
+        return { ...p, slides: p.slides.filter((_, i) => i !== index), updatedAt: new Date() }
+      }),
+    })),
+
+  reorderSlide: (presentationId, from, to) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) => {
+        if (p.id !== presentationId) return p
+        const slides = [...p.slides]
+        const [moved] = slides.splice(from, 1)
+        slides.splice(to, 0, moved)
+        return { ...p, slides, updatedAt: new Date() }
+      }),
+    })),
+
+  toggleSlideHidden: (presentationId, index) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) => {
+        if (p.id !== presentationId) return p
+        return {
+          ...p,
+          slides: p.slides.map((s, i) => i !== index ? s : { ...s, hidden: !s.hidden }),
+          updatedAt: new Date(),
+        }
+      }),
+    })),
+
   addElement: (presentationId, slideId, element) =>
     set((state) => ({
       presentations: state.presentations.map((p) =>
@@ -282,6 +339,36 @@ export const useAppStore = create<AppState>((set) => ({
               ),
             }
           }),
+        }
+      ),
+    })),
+
+  replaceSlideElements: (presentationId, slideId, elements) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) =>
+        p.id !== presentationId ? p : {
+          ...p,
+          updatedAt: new Date(),
+          slides: p.slides.map((s) => s.id !== slideId ? s : { ...s, elements }),
+        }
+      ),
+    })),
+
+  updateMultipleElements: (presentationId, slideId, patches) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) =>
+        p.id !== presentationId ? p : {
+          ...p,
+          updatedAt: new Date(),
+          slides: p.slides.map((s) =>
+            s.id !== slideId ? s : {
+              ...s,
+              elements: s.elements.map((el) => {
+                const match = patches.find((pc) => pc.elementId === el.id)
+                return match ? { ...el, ...match.patch } : el
+              }),
+            }
+          ),
         }
       ),
     })),

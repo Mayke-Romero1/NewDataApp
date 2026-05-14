@@ -2,7 +2,7 @@ import {
   Download, Share2, Play, X, ChevronLeft, ChevronRight,
   Type, Image, BarChart2, Layers,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 import { formatRelativeTime } from '@/lib/utils'
 import type { Slide, SlideElement, SlideElementType } from '@/types'
@@ -81,10 +81,14 @@ interface PresentationOverlayProps {
 }
 
 const PresentationOverlay = ({ slides, initialIndex, onClose }: PresentationOverlayProps) => {
-  const [index, setIndex] = useState(initialIndex)
-  const slide = slides[index]
+  const visibleSlides = slides.filter((s) => !s.hidden)
+  const [index, setIndex] = useState(() => {
+    const visIdx = visibleSlides.findIndex((s) => s.id === slides[initialIndex]?.id)
+    return Math.max(0, visIdx)
+  })
+  const slide = visibleSlides[index]
 
-  const goNext = () => setIndex((i) => Math.min(i + 1, slides.length - 1))
+  const goNext = () => setIndex((i) => Math.min(i + 1, visibleSlides.length - 1))
   const goPrev = () => setIndex((i) => Math.max(i - 1, 0))
 
   useEffect(() => {
@@ -96,6 +100,8 @@ const PresentationOverlay = ({ slides, initialIndex, onClose }: PresentationOver
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  if (!slide) return null
 
   const scale = Math.min(window.innerWidth / CANVAS_W, window.innerHeight / CANVAS_H)
 
@@ -158,19 +164,10 @@ const PresentationOverlay = ({ slides, initialIndex, onClose }: PresentationOver
         onClick={onClose}
         title="Fechar (Esc)"
         style={{
-          position: 'fixed',
-          top: 16,
-          right: 20,
-          width: 36,
-          height: 36,
-          borderRadius: 8,
-          background: 'rgba(255,255,255,0.1)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          color: '#fff',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          position: 'fixed', top: 16, right: 20, width: 36, height: 36,
+          borderRadius: 8, background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.15)', color: '#fff',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
       >
         <X size={16} />
@@ -181,20 +178,12 @@ const PresentationOverlay = ({ slides, initialIndex, onClose }: PresentationOver
         disabled={index === 0}
         title="Slide anterior (←)"
         style={{
-          position: 'fixed',
-          left: 16,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          width: 40,
-          height: 40,
-          borderRadius: 8,
-          background: 'rgba(255,255,255,0.1)',
+          position: 'fixed', left: 16, top: '50%', transform: 'translateY(-50%)',
+          width: 40, height: 40, borderRadius: 8, background: 'rgba(255,255,255,0.1)',
           border: '1px solid rgba(255,255,255,0.15)',
           color: index === 0 ? 'rgba(255,255,255,0.25)' : '#fff',
           cursor: index === 0 ? 'default' : 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
       >
         <ChevronLeft size={20} />
@@ -202,23 +191,15 @@ const PresentationOverlay = ({ slides, initialIndex, onClose }: PresentationOver
 
       <button
         onClick={goNext}
-        disabled={index === slides.length - 1}
+        disabled={index === visibleSlides.length - 1}
         title="Próximo slide (→)"
         style={{
-          position: 'fixed',
-          right: 16,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          width: 40,
-          height: 40,
-          borderRadius: 8,
-          background: 'rgba(255,255,255,0.1)',
+          position: 'fixed', right: 16, top: '50%', transform: 'translateY(-50%)',
+          width: 40, height: 40, borderRadius: 8, background: 'rgba(255,255,255,0.1)',
           border: '1px solid rgba(255,255,255,0.15)',
-          color: index === slides.length - 1 ? 'rgba(255,255,255,0.25)' : '#fff',
-          cursor: index === slides.length - 1 ? 'default' : 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          color: index === visibleSlides.length - 1 ? 'rgba(255,255,255,0.25)' : '#fff',
+          cursor: index === visibleSlides.length - 1 ? 'default' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
       >
         <ChevronRight size={20} />
@@ -226,20 +207,13 @@ const PresentationOverlay = ({ slides, initialIndex, onClose }: PresentationOver
 
       <div
         style={{
-          position: 'fixed',
-          bottom: 16,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: 'rgba(255,255,255,0.1)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          borderRadius: 6,
-          padding: '4px 12px',
-          color: 'rgba(255,255,255,0.7)',
-          fontSize: 12,
-          fontFamily: 'DM Sans, sans-serif',
+          position: 'fixed', bottom: 16, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
+          borderRadius: 6, padding: '4px 12px',
+          color: 'rgba(255,255,255,0.7)', fontSize: 12, fontFamily: 'DM Sans, sans-serif',
         }}
       >
-        {index + 1} / {slides.length}
+        {index + 1} / {visibleSlides.length}
       </div>
     </div>
   )
@@ -251,20 +225,38 @@ export const SlidesPage = () => {
     activePresentationId,
     addSlide,
     updateSlide,
+    duplicateSlide,
+    deleteSlide,
+    reorderSlide,
+    toggleSlideHidden,
     addElement,
     updateElement,
     removeElement,
     reorderElement,
+    replaceSlideElements,
+    updateMultipleElements,
   } = useAppStore()
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
-  const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
+  const [selectedElementIds, setSelectedElementIds] = useState<string[]>([])
+  const [clipboard, setClipboard] = useState<SlideElement[] | null>(null)
+  const [undoHistory, setUndoHistory] = useState<SlideElement[][]>([])
+  const [cropElementId, setCropElementId] = useState<string | null>(null)
   const [isThumbnailCollapsed, setIsThumbnailCollapsed] = useState(false)
   const [isEditorCollapsed, setIsEditorCollapsed] = useState(false)
   const [isPresentMode, setIsPresentMode] = useState(false)
 
   const activePresentation = presentations.find((p) => p.id === activePresentationId) ?? presentations[0]
   const activeSlide = activePresentation?.slides[activeSlideIndex] ?? activePresentation?.slides[0]
+
+  const activeSlidRef = useRef(activeSlide)
+  useEffect(() => { activeSlidRef.current = activeSlide }, [activeSlide])
+
+  const pushUndo = () => {
+    const slide = activeSlidRef.current
+    if (!slide) return
+    setUndoHistory((prev) => [...prev.slice(-29), [...slide.elements]])
+  }
 
   const handleAddSlide = () => {
     if (!activePresentation) return
@@ -276,20 +268,49 @@ export const SlidesPage = () => {
     }
     addSlide(activePresentation.id, newSlide)
     setActiveSlideIndex(activePresentation.slides.length)
-    setSelectedElementId(null)
+    setSelectedElementIds([])
   }
 
   const handleSelectSlide = (index: number) => {
     setActiveSlideIndex(index)
-    setSelectedElementId(null)
+    setSelectedElementIds([])
+    setCropElementId(null)
+  }
+
+  const handleDuplicateSlide = (index: number) => {
+    if (!activePresentation) return
+    duplicateSlide(activePresentation.id, index)
+    setActiveSlideIndex(index + 1)
+    setSelectedElementIds([])
+  }
+
+  const handleDeleteSlide = (index: number) => {
+    if (!activePresentation) return
+    deleteSlide(activePresentation.id, index)
+    setActiveSlideIndex((prev) => Math.max(0, prev >= index ? prev - 1 : prev))
+    setSelectedElementIds([])
+  }
+
+  const handleReorderSlide = (from: number, to: number) => {
+    if (!activePresentation) return
+    reorderSlide(activePresentation.id, from, to)
+    if (activeSlideIndex === from) setActiveSlideIndex(to)
+    else if (activeSlideIndex > from && activeSlideIndex <= to) setActiveSlideIndex((prev) => prev - 1)
+    else if (activeSlideIndex < from && activeSlideIndex >= to) setActiveSlideIndex((prev) => prev + 1)
+  }
+
+  const handleToggleSlideHidden = (index: number) => {
+    if (!activePresentation) return
+    toggleSlideHidden(activePresentation.id, index)
   }
 
   const handleAddElement = (type: SlideElementType) => {
     if (!activePresentation || !activeSlide) return
     const maxZ = activeSlide.elements.reduce((m, el) => Math.max(m, el.zIndex), 0)
     const el = buildDefaultElement(type, maxZ + 1)
+    pushUndo()
     addElement(activePresentation.id, activeSlide.id, el)
-    setSelectedElementId(el.id)
+    setSelectedElementIds([el.id])
   }
 
   const handleUpdateElement = (elementId: string, patch: Partial<SlideElement>) => {
@@ -297,10 +318,16 @@ export const SlidesPage = () => {
     updateElement(activePresentation.id, activeSlide.id, elementId, patch)
   }
 
+  const handleUpdateMultiple = (patches: Array<{ elementId: string; patch: Partial<SlideElement> }>) => {
+    if (!activePresentation || !activeSlide) return
+    updateMultipleElements(activePresentation.id, activeSlide.id, patches)
+  }
+
   const handleDeleteElement = (elementId: string) => {
     if (!activePresentation || !activeSlide) return
+    pushUndo()
     removeElement(activePresentation.id, activeSlide.id, elementId)
-    setSelectedElementId(null)
+    setSelectedElementIds((prev) => prev.filter((id) => id !== elementId))
   }
 
   const handleReorderElement = (elementId: string, direction: 'front' | 'back') => {
@@ -313,18 +340,90 @@ export const SlidesPage = () => {
     updateSlide(activePresentation.id, activeSlide.id, patch)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementId) {
-      const activeEl = document.activeElement?.tagName
-      if (activeEl === 'INPUT' || activeEl === 'TEXTAREA' || activeEl === 'SELECT') return
-      handleDeleteElement(selectedElementId)
+  const handleSelectElement = (id: string, isShift: boolean) => {
+    if (isShift) {
+      setSelectedElementIds((prev) =>
+        prev.includes(id) ? prev.filter((eid) => eid !== id) : [...prev, id]
+      )
+    } else {
+      setSelectedElementIds([id])
     }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const activeEl = document.activeElement?.tagName
+    const isInputFocused = activeEl === 'INPUT' || activeEl === 'TEXTAREA' || activeEl === 'SELECT'
+
     if (e.key === 'Escape') {
-      setSelectedElementId(null)
+      if (cropElementId) { setCropElementId(null); return }
+      setSelectedElementIds([])
+      return
+    }
+
+    if (e.ctrlKey || e.metaKey) {
+      if ((e.key === 'a' || e.key === 'A') && !isInputFocused) {
+        e.preventDefault()
+        setSelectedElementIds(activeSlide?.elements.map((el) => el.id) ?? [])
+        return
+      }
+      if (e.key === 'c' && !isInputFocused) {
+        e.preventDefault()
+        const selected = activeSlide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? []
+        if (selected.length > 0) setClipboard(selected)
+        return
+      }
+      if (e.key === 'x' && !isInputFocused) {
+        e.preventDefault()
+        if (!activePresentation || !activeSlide) return
+        const selected = activeSlide.elements.filter((el) => selectedElementIds.includes(el.id))
+        if (selected.length === 0) return
+        setClipboard(selected)
+        pushUndo()
+        selectedElementIds.forEach((id) => removeElement(activePresentation.id, activeSlide.id, id))
+        setSelectedElementIds([])
+        return
+      }
+      if (e.key === 'v' && !isInputFocused) {
+        e.preventDefault()
+        if (!activePresentation || !activeSlide || !clipboard || clipboard.length === 0) return
+        pushUndo()
+        const newIds: string[] = []
+        clipboard.forEach((el) => {
+          const newEl: SlideElement = {
+            ...el,
+            id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            x: el.x + 10,
+            y: el.y + 10,
+          }
+          addElement(activePresentation.id, activeSlide.id, newEl)
+          newIds.push(newEl.id)
+        })
+        setSelectedElementIds(newIds)
+        return
+      }
+      if (e.key === 'z' && !isInputFocused) {
+        e.preventDefault()
+        if (!activePresentation || !activeSlide || undoHistory.length === 0) return
+        const snapshot = undoHistory[undoHistory.length - 1]
+        setUndoHistory((prev) => prev.slice(0, -1))
+        replaceSlideElements(activePresentation.id, activeSlide.id, snapshot)
+        setSelectedElementIds([])
+        return
+      }
+      return
+    }
+
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementIds.length > 0 && !isInputFocused) {
+      if (!activePresentation || !activeSlide) return
+      pushUndo()
+      selectedElementIds.forEach((id) => removeElement(activePresentation.id, activeSlide.id, id))
+      setSelectedElementIds([])
     }
   }
 
   if (!activePresentation || !activeSlide) return null
+
+  const selectedElementId = selectedElementIds[selectedElementIds.length - 1] ?? null
 
   return (
     <div
@@ -356,7 +455,6 @@ export const SlidesPage = () => {
           </div>
 
           <div className="w-px h-5 bg-[var(--border)]" />
-
           <div className="flex-1" />
 
           <div className="flex items-center gap-2">
@@ -388,13 +486,23 @@ export const SlidesPage = () => {
             onSelectSlide={handleSelectSlide}
             onAddSlide={handleAddSlide}
             onToggleCollapse={() => setIsThumbnailCollapsed((v) => !v)}
+            onDuplicateSlide={handleDuplicateSlide}
+            onDeleteSlide={handleDeleteSlide}
+            onReorderSlide={handleReorderSlide}
+            onToggleSlideHidden={handleToggleSlideHidden}
           />
 
           <SlideCanvas
             slide={activeSlide}
-            selectedElementId={selectedElementId}
-            onSelectElement={setSelectedElementId}
+            selectedElementIds={selectedElementIds}
+            cropElementId={cropElementId}
+            onSelectElement={handleSelectElement}
+            onSelectNone={() => { setSelectedElementIds([]); setCropElementId(null) }}
             onUpdateElement={handleUpdateElement}
+            onUpdateMultiple={handleUpdateMultiple}
+            onInteractionStart={pushUndo}
+            onEnterCrop={(id) => setCropElementId(id)}
+            onExitCrop={() => setCropElementId(null)}
           />
 
           <SlideEditorPanel

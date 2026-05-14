@@ -641,6 +641,66 @@ export const ElementPropertiesPanel = ({
         </div>
       )}
 
+      {element.type === 'kpi' && (
+        <div>
+          <SectionLabel>Formatação do valor</SectionLabel>
+          <div className="space-y-2">
+            <div>
+              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Formato</label>
+              <div className="flex gap-1">
+                {(['number', 'currency', 'percent'] as const).map((fmt) => (
+                  <button
+                    key={fmt}
+                    onClick={() => updateBinding({ valueFormat: fmt })}
+                    className={cn(
+                      'flex-1 h-7 text-[10px] rounded border transition-colors',
+                      (db.valueFormat ?? 'number') === fmt
+                        ? 'bg-[rgba(79,99,247,0.2)] border-brand-500 text-[#748bff]'
+                        : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[rgba(255,255,255,0.2)]'
+                    )}
+                  >
+                    {fmt === 'number' ? 'Nº' : fmt === 'currency' ? 'R$' : '%'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Casas decimais</label>
+              <div className="flex gap-1">
+                {([0, 1, 2] as const).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => updateBinding({ decimalPlaces: d })}
+                    className={cn(
+                      'flex-1 h-7 text-[10px] rounded border transition-colors',
+                      (db.decimalPlaces ?? 0) === d
+                        ? 'bg-[rgba(79,99,247,0.2)] border-brand-500 text-[#748bff]'
+                        : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[rgba(255,255,255,0.2)]'
+                    )}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] text-[var(--text-muted)]">Compacto (K / M)</label>
+              <button
+                onClick={() => updateBinding({ compact: db.compact === false ? undefined : false })}
+                className={cn(
+                  'text-[10px] px-2 h-6 rounded border transition-colors',
+                  db.compact !== false
+                    ? 'bg-[rgba(79,99,247,0.2)] border-brand-500 text-[#748bff]'
+                    : 'border-[var(--border)] text-[var(--text-muted)]'
+                )}
+              >
+                {db.compact !== false ? 'Ativo' : 'Inativo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="pt-2 border-t border-[var(--border)]">
         <button
           onClick={onDelete}

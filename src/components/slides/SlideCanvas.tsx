@@ -26,7 +26,8 @@ const RESIZE_DEFS: Array<{ id: ResizeHandle; pos: React.CSSProperties; cursor: s
 interface DragState { kind: 'drag'; px: number; py: number; ex: number; ey: number }
 interface ResizeState { kind: 'resize'; h: ResizeHandle; px: number; py: number; ex: number; ey: number; ew: number; eh: number }
 interface RotateState { kind: 'rotate'; cx: number; cy: number; startAngle: number; startRotation: number }
-type Interaction = DragState | ResizeState | RotateState
+interface CropState { kind: 'crop'; px: number; py: number; startCropX: number; startCropY: number }
+type Interaction = DragState | ResizeState | RotateState | CropState
 
 const applyResize = (s: ResizeState, ptrX: number, ptrY: number, scale: number): Partial<SlideElement> => {
   const dx = (ptrX - s.px) / scale
@@ -61,18 +62,25 @@ const applyRotation = (s: RotateState, ptrX: number, ptrY: number): number => {
 interface ElementOverlayProps {
   element: SlideElement
   isSelected: boolean
+  isInMultiSelect: boolean
+  isCropMode: boolean
   isEditing: boolean
   scaleRef: { readonly current: number }
   canvasRef: { readonly current: HTMLDivElement | null }
-  onSelect: () => void
+  onSelect: (isShift: boolean) => void
   onEditStart: () => void
   onEditEnd: (content: string) => void
   onUpdate: (patch: Partial<SlideElement>) => void
+  onInteractionStart: (kind: 'drag' | 'resize' | 'rotate') => void
+  onDragDelta: (dx: number, dy: number) => void
+  onEnterCrop: () => void
 }
 
 const ElementOverlay = ({
   element,
   isSelected,
+  isInMultiSelect,
+  isCropMode,
   isEditing,
   scaleRef,
   canvasRef,
@@ -80,27 +88,66 @@ const ElementOverlay = ({
   onEditStart,
   onEditEnd,
   onUpdate,
+  onInteractionStart,
+  onDragDelta,
+  onEnterCrop,
 }: ElementOverlayProps) => {
   const interactionRef = useRef<Interaction | null>(null)
+  const didDragRef = useRef(false)
 
   const handleDragDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (element.locked || isEditing) return
     e.stopPropagation()
+
+    if (e.shiftKey) {
+      onSelect(true)
+      return
+    }
+
+    didDragRef.current = false
     e.currentTarget.setPointerCapture(e.pointerId)
-    onSelect()
+
+    if (isCropMode && element.type === 'image') {
+      interactionRef.current = {
+        kind: 'crop',
+        px: e.clientX, py: e.clientY,
+        startCropX: element.style.cropX ?? 50,
+        startCropY: element.style.cropY ?? 50,
+      }
+      return
+    }
+
+    onInteractionStart('drag')
+
+    if (!isSelected) onSelect(false)
     interactionRef.current = { kind: 'drag', px: e.clientX, py: e.clientY, ex: element.x, ey: element.y }
   }
 
-  const handleDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const s = interactionRef.current
-    if (s?.kind !== 'drag') return
+    if (!s) return
     const sc = scaleRef.current
-    onUpdate({ x: Math.round(s.ex + (e.clientX - s.px) / sc), y: Math.round(s.ey + (e.clientY - s.py) / sc) })
+
+    if (s.kind === 'drag') {
+      didDragRef.current = true
+      if (isInMultiSelect) {
+        onDragDelta((e.clientX - s.px) / sc, (e.clientY - s.py) / sc)
+      } else {
+        onUpdate({ x: Math.round(s.ex + (e.clientX - s.px) / sc), y: Math.round(s.ey + (e.clientY - s.py) / sc) })
+      }
+    } else if (s.kind === 'crop') {
+      const dx = (e.clientX - s.px) / sc
+      const dy = (e.clientY - s.py) / sc
+      const newX = Math.max(0, Math.min(100, s.startCropX + (dx / element.width) * 100))
+      const newY = Math.max(0, Math.min(100, s.startCropY + (dy / element.height) * 100))
+      onUpdate({ style: { ...element.style, cropX: newX, cropY: newY } })
+    }
   }
 
   const handleResizeDown = (e: React.PointerEvent<HTMLDivElement>, handle: ResizeHandle) => {
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
+    onInteractionStart('resize')
     interactionRef.current = {
       kind: 'resize', h: handle,
       px: e.clientX, py: e.clientY,
@@ -117,6 +164,7 @@ const ElementOverlay = ({
   const handleRotateDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
+    onInteractionStart('rotate')
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
     const sc = scaleRef.current
@@ -135,7 +183,16 @@ const ElementOverlay = ({
     onUpdate({ rotation: applyRotation(s, e.clientX, e.clientY) })
   }
 
-  const clearInteraction = () => { interactionRef.current = null }
+  const clearInteraction = () => {
+    const s = interactionRef.current
+    if (s?.kind === 'drag' && isInMultiSelect && !didDragRef.current) {
+      onSelect(false)
+    }
+    interactionRef.current = null
+    didDragRef.current = false
+  }
+
+  const outlineColor = isCropMode ? '#f59e0b' : '#4f63f7'
 
   return (
     <div
@@ -147,20 +204,27 @@ const ElementOverlay = ({
         height: element.height,
         transform: `rotate(${element.rotation}deg)`,
         opacity: element.opacity,
-        cursor: element.locked ? 'default' : isEditing ? 'text' : 'move',
+        cursor: element.locked ? 'default'
+          : isCropMode ? 'crosshair'
+          : isEditing ? 'text'
+          : 'move',
         userSelect: 'none',
-        outline: isSelected && !isEditing ? '2px solid #4f63f7' : 'none',
+        outline: isSelected && !isEditing ? `2px solid ${outlineColor}` : 'none',
         outlineOffset: 2,
         zIndex: element.zIndex,
       }}
-      onClick={(e) => { e.stopPropagation(); onSelect() }}
-      onDoubleClick={(e) => {
-        if (element.type !== 'text' || element.locked) return
+      onClick={(e) => {
         e.stopPropagation()
-        onEditStart()
+        if (!e.shiftKey && !isInMultiSelect) onSelect(false)
+      }}
+      onDoubleClick={(e) => {
+        e.stopPropagation()
+        if (element.locked) return
+        if (element.type === 'text') onEditStart()
+        else if (element.type === 'image') onEnterCrop()
       }}
       onPointerDown={handleDragDown}
-      onPointerMove={handleDragMove}
+      onPointerMove={handlePointerMove}
       onPointerUp={clearInteraction}
     >
       <SlideElementRenderer element={element} />
@@ -171,6 +235,16 @@ const ElementOverlay = ({
         </div>
       )}
 
+      {isCropMode && (
+        <div style={{
+          position: 'absolute', bottom: -28, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(245,158,11,0.9)', borderRadius: 4, padding: '2px 8px',
+          fontSize: 10, color: '#fff', whiteSpace: 'nowrap', pointerEvents: 'none',
+        }}>
+          Recorte — Esc para sair
+        </div>
+      )}
+
       {isEditing && element.type === 'text' && (
         <textarea
           autoFocus
@@ -178,39 +252,27 @@ const ElementOverlay = ({
           onBlur={(e) => onEditEnd(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Escape') onEditEnd(element.content ?? '') }}
           style={{
-            position: 'absolute',
-            inset: 0,
+            position: 'absolute', inset: 0,
             background: 'rgba(10,12,30,0.9)',
             color: element.style.color ?? '#f0f2ff',
             fontSize: element.style.fontSize ?? 16,
             fontWeight: element.style.fontWeight ?? 'normal',
             textAlign: element.style.textAlign ?? 'left',
             padding: element.style.padding ?? 8,
-            border: '2px solid #4f63f7',
-            borderRadius: 4,
-            outline: 'none',
-            resize: 'none',
-            zIndex: 9999,
-            lineHeight: 1.3,
-            fontFamily: 'DM Sans, sans-serif',
-            boxSizing: 'border-box',
+            border: '2px solid #4f63f7', borderRadius: 4,
+            outline: 'none', resize: 'none', zIndex: 9999,
+            lineHeight: 1.3, fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box',
           }}
         />
       )}
 
-      {isSelected && !isEditing && (
+      {isSelected && !isEditing && !isCropMode && (
         <>
           <div
             style={{
-              position: 'absolute',
-              top: -32,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              cursor: 'crosshair',
-              pointerEvents: 'auto',
+              position: 'absolute', top: -32, left: '50%', transform: 'translateX(-50%)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              cursor: 'crosshair', pointerEvents: 'auto',
             }}
             onPointerDown={handleRotateDown}
             onPointerMove={handleRotateMove}
@@ -224,15 +286,9 @@ const ElementOverlay = ({
             <div
               key={id}
               style={{
-                position: 'absolute',
-                width: 9,
-                height: 9,
-                borderRadius: 2,
-                background: '#4f63f7',
-                border: '1.5px solid white',
-                cursor,
-                zIndex: 10,
-                ...pos,
+                position: 'absolute', width: 9, height: 9, borderRadius: 2,
+                background: '#4f63f7', border: '1.5px solid white',
+                cursor, zIndex: 10, ...pos,
               }}
               onPointerDown={(e) => handleResizeDown(e, id)}
               onPointerMove={handleResizeMove}
@@ -245,29 +301,15 @@ const ElementOverlay = ({
   )
 }
 
-interface ZoomControlsProps {
-  zoom: number
-  onZoomIn: () => void
-  onZoomOut: () => void
-  onReset: () => void
-}
-
-const ZoomControls = ({ zoom, onZoomIn, onZoomOut, onReset }: ZoomControlsProps) => (
-  <div
-    style={{
-      position: 'absolute',
-      bottom: 12,
-      right: 16,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 2,
-      background: 'rgba(15,17,40,0.9)',
-      border: '1px solid rgba(255,255,255,0.1)',
-      borderRadius: 8,
-      padding: '3px 6px',
-      backdropFilter: 'blur(8px)',
-    }}
-  >
+const ZoomControls = ({ zoom, onZoomIn, onZoomOut, onReset }: {
+  zoom: number; onZoomIn: () => void; onZoomOut: () => void; onReset: () => void
+}) => (
+  <div style={{
+    position: 'absolute', bottom: 12, right: 16,
+    display: 'flex', alignItems: 'center', gap: 2,
+    background: 'rgba(15,17,40,0.9)', border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 8, padding: '3px 6px', backdropFilter: 'blur(8px)',
+  }}>
     <button
       onClick={onZoomOut}
       title="Zoom out (Ctrl+-)"
@@ -292,25 +334,16 @@ const ZoomControls = ({ zoom, onZoomIn, onZoomOut, onReset }: ZoomControlsProps)
   </div>
 )
 
-interface StatusBarProps {
-  element: SlideElement | null
-}
-
-const StatusBar = ({ element }: StatusBarProps) => (
-  <div
-    style={{
-      height: 28,
-      padding: '0 16px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 20,
-      fontSize: 11,
-      color: '#525878',
-      borderTop: '1px solid rgba(255,255,255,0.06)',
-      flexShrink: 0,
-    }}
-  >
-    {element ? (
+const StatusBar = ({ element, selectedCount }: { element: SlideElement | null; selectedCount: number }) => (
+  <div style={{
+    height: 28, padding: '0 16px',
+    display: 'flex', alignItems: 'center', gap: 20,
+    fontSize: 11, color: '#525878',
+    borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
+  }}>
+    {selectedCount > 1 ? (
+      <span style={{ color: '#8b93c8' }}>{selectedCount} elementos selecionados</span>
+    ) : element ? (
       <>
         <span>X: <span style={{ color: '#8b93c8' }}>{element.x}</span></span>
         <span>Y: <span style={{ color: '#8b93c8' }}>{element.y}</span></span>
@@ -329,16 +362,28 @@ const StatusBar = ({ element }: StatusBarProps) => (
 
 interface SlideCanvasProps {
   slide: Slide
-  selectedElementId: string | null
-  onSelectElement: (id: string | null) => void
+  selectedElementIds: string[]
+  cropElementId: string | null
+  onSelectElement: (id: string, isShift: boolean) => void
+  onSelectNone: () => void
   onUpdateElement: (elementId: string, patch: Partial<SlideElement>) => void
+  onUpdateMultiple: (patches: Array<{ elementId: string; patch: Partial<SlideElement> }>) => void
+  onInteractionStart: () => void
+  onEnterCrop: (id: string) => void
+  onExitCrop: () => void
 }
 
 export const SlideCanvas = ({
   slide,
-  selectedElementId,
+  selectedElementIds,
+  cropElementId,
   onSelectElement,
+  onSelectNone,
   onUpdateElement,
+  onUpdateMultiple,
+  onInteractionStart,
+  onEnterCrop,
+  onExitCrop,
 }: SlideCanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasInnerRef = useRef<HTMLDivElement>(null)
@@ -348,6 +393,7 @@ export const SlideCanvas = ({
 
   const effectiveScale = baseScale * userZoom
   const effectiveScaleRef = useRef(effectiveScale)
+  const multiDragStartRef = useRef<Map<string, { x: number; y: number }> | null>(null)
 
   useEffect(() => { effectiveScaleRef.current = effectiveScale }, [effectiveScale])
 
@@ -368,10 +414,10 @@ export const SlideCanvas = ({
       if (!(e.ctrlKey || e.metaKey)) return
       if (e.key === '=' || e.key === '+') {
         e.preventDefault()
-        setUserZoom(z => Math.min(ZOOM_MAX, z + ZOOM_STEP))
+        setUserZoom((z) => Math.min(ZOOM_MAX, z + ZOOM_STEP))
       } else if (e.key === '-') {
         e.preventDefault()
-        setUserZoom(z => Math.max(ZOOM_MIN, z - ZOOM_STEP))
+        setUserZoom((z) => Math.max(ZOOM_MIN, z - ZOOM_STEP))
       } else if (e.key === '0') {
         e.preventDefault()
         setUserZoom(1)
@@ -381,23 +427,56 @@ export const SlideCanvas = ({
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  const handleInteractionStart = (elementId: string, kind: 'drag' | 'resize' | 'rotate') => {
+    onInteractionStart()
+    if (kind === 'drag' && selectedElementIds.length > 1 && selectedElementIds.includes(elementId)) {
+      multiDragStartRef.current = new Map(
+        selectedElementIds.map((id) => {
+          const el = slide.elements.find((e) => e.id === id)
+          return [id, { x: el?.x ?? 0, y: el?.y ?? 0 }]
+        })
+      )
+    } else {
+      multiDragStartRef.current = null
+    }
+  }
+
+  const handleDragDelta = (dx: number, dy: number) => {
+    if (!multiDragStartRef.current) return
+    const patches = Array.from(multiDragStartRef.current.entries()).map(([id, start]) => ({
+      elementId: id,
+      patch: { x: Math.round(start.x + dx), y: Math.round(start.y + dy) } as Partial<SlideElement>,
+    }))
+    onUpdateMultiple(patches)
+  }
+
   const sorted = [...slide.elements]
-    .filter(el => el.visibility)
+    .filter((el) => el.visibility)
     .sort((a, b) => a.zIndex - b.zIndex)
 
-  const selectedElement = slide.elements.find(el => el.id === selectedElementId) ?? null
+  const selectedElement = slide.elements.find((el) => el.id === selectedElementIds[selectedElementIds.length - 1]) ?? null
+
+  const boundingBox = selectedElementIds.length > 1
+    ? (() => {
+        const els = slide.elements.filter((el) => selectedElementIds.includes(el.id))
+        if (els.length === 0) return null
+        const xs = els.flatMap((el) => [el.x, el.x + el.width])
+        const ys = els.flatMap((el) => [el.y, el.y + el.height])
+        return {
+          x: Math.min(...xs), y: Math.min(...ys),
+          width: Math.max(...xs) - Math.min(...xs),
+          height: Math.max(...ys) - Math.min(...ys),
+        }
+      })()
+    : null
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--bg-primary)]">
       <div
         ref={containerRef}
         style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          overflow: 'hidden',
-          position: 'relative',
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          overflow: 'hidden', position: 'relative',
           backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)',
           backgroundSize: '24px 24px',
         }}
@@ -406,57 +485,73 @@ export const SlideCanvas = ({
           style={{
             width: CANVAS_W * effectiveScale,
             height: CANVAS_H * effectiveScale,
-            position: 'relative',
-            flexShrink: 0,
-            borderRadius: 12,
-            overflow: 'hidden',
-            boxShadow: '0 8px 48px rgba(0,0,0,0.5)',
+            position: 'relative', flexShrink: 0, borderRadius: 12,
+            overflow: 'hidden', boxShadow: '0 8px 48px rgba(0,0,0,0.5)',
           }}
         >
           <div
             ref={canvasInnerRef}
             style={{
-              width: CANVAS_W,
-              height: CANVAS_H,
-              transform: `scale(${effectiveScale})`,
-              transformOrigin: 'top left',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              background: slide.background,
-              overflow: 'hidden',
+              width: CANVAS_W, height: CANVAS_H,
+              transform: `scale(${effectiveScale})`, transformOrigin: 'top left',
+              position: 'absolute', top: 0, left: 0,
+              background: slide.background, overflow: 'hidden',
             }}
-            onClick={() => { onSelectElement(null); setEditingElementId(null) }}
+            onClick={() => { onSelectNone(); setEditingElementId(null); if (cropElementId) onExitCrop() }}
           >
-            {sorted.map(element => (
-              <ElementOverlay
-                key={element.id}
-                element={element}
-                isSelected={selectedElementId === element.id}
-                isEditing={editingElementId === element.id}
-                scaleRef={effectiveScaleRef}
-                canvasRef={canvasInnerRef}
-                onSelect={() => onSelectElement(element.id)}
-                onEditStart={() => setEditingElementId(element.id)}
-                onEditEnd={(content) => {
-                  onUpdateElement(element.id, { content })
-                  setEditingElementId(null)
+            {sorted.map((element) => {
+              const isInMultiSelect = selectedElementIds.includes(element.id) && selectedElementIds.length > 1
+              return (
+                <ElementOverlay
+                  key={element.id}
+                  element={element}
+                  isSelected={selectedElementIds.includes(element.id)}
+                  isInMultiSelect={isInMultiSelect}
+                  isCropMode={cropElementId === element.id}
+                  isEditing={editingElementId === element.id}
+                  scaleRef={effectiveScaleRef}
+                  canvasRef={canvasInnerRef}
+                  onSelect={(isShift) => onSelectElement(element.id, isShift)}
+                  onEditStart={() => setEditingElementId(element.id)}
+                  onEditEnd={(content) => {
+                    onUpdateElement(element.id, { content })
+                    setEditingElementId(null)
+                  }}
+                  onUpdate={(patch) => onUpdateElement(element.id, patch)}
+                  onInteractionStart={(kind) => handleInteractionStart(element.id, kind)}
+                  onDragDelta={handleDragDelta}
+                  onEnterCrop={() => onEnterCrop(element.id)}
+                />
+              )
+            })}
+
+            {boundingBox && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: boundingBox.x - 6,
+                  top: boundingBox.y - 6,
+                  width: boundingBox.width + 12,
+                  height: boundingBox.height + 12,
+                  border: '1.5px dashed rgba(79,99,247,0.5)',
+                  borderRadius: 4,
+                  pointerEvents: 'none',
+                  zIndex: 99999,
                 }}
-                onUpdate={(patch) => onUpdateElement(element.id, patch)}
               />
-            ))}
+            )}
           </div>
         </div>
 
         <ZoomControls
           zoom={userZoom}
-          onZoomIn={() => setUserZoom(z => Math.min(ZOOM_MAX, z + ZOOM_STEP))}
-          onZoomOut={() => setUserZoom(z => Math.max(ZOOM_MIN, z - ZOOM_STEP))}
+          onZoomIn={() => setUserZoom((z) => Math.min(ZOOM_MAX, z + ZOOM_STEP))}
+          onZoomOut={() => setUserZoom((z) => Math.max(ZOOM_MIN, z - ZOOM_STEP))}
           onReset={() => setUserZoom(1)}
         />
       </div>
 
-      <StatusBar element={selectedElement} />
+      <StatusBar element={selectedElement} selectedCount={selectedElementIds.length} />
     </div>
   )
 }

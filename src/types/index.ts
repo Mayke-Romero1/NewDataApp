@@ -107,6 +107,8 @@ export interface SlideElementStyle {
   borderColor?: string
   borderWidth?: number
   padding?: number
+  cropX?: number
+  cropY?: number
 }
 
 export interface SlideDataBinding {
@@ -121,6 +123,9 @@ export interface SlideDataBinding {
   dateColumn?: string
   dateFrom?: string
   dateTo?: string
+  valueFormat?: 'number' | 'currency' | 'percent'
+  decimalPlaces?: 0 | 1 | 2
+  compact?: boolean
 }
 
 export interface SlideElement {
@@ -146,6 +151,7 @@ export interface Slide {
   background: string
   elements: SlideElement[]
   notes?: string
+  hidden?: boolean
 }
 
 export interface SlidePresentation {
