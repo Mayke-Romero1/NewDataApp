@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import type { Client, Dashboard, Slide, SlideElement, SlidePresentation, Workspace } from '@/types'
-import { MOCK_DASHBOARDS, MOCK_PRESENTATIONS } from '@/lib/mockData'
+import type { Client, Dashboard, Integration, Slide, SlideElement, SlidePresentation, Workspace } from '@/types'
+import { MOCK_DASHBOARDS, MOCK_INTEGRATIONS, MOCK_PRESENTATIONS } from '@/lib/mockData'
 
 interface AppState {
   // Workspace
@@ -64,6 +64,19 @@ interface AppState {
   setGridEnabled: (v: boolean) => void
   setGridSize: (v: number) => void
   setSmartGuidesEnabled: (v: boolean) => void
+
+  // Integrations
+  integrations: Integration[]
+
+  // Slides integration state
+  slidesIntegrationDismissed: boolean
+  slidesActiveIntegrationId: string | null
+  slidesIntegrationModalSeen: string | null
+  recentColors: string[]
+  setSlidesIntegrationDismissed: (v: boolean) => void
+  setSlidesActiveIntegrationId: (id: string | null) => void
+  setSlidesIntegrationModalSeen: (presentationId: string) => void
+  addRecentColor: (color: string) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -434,4 +447,20 @@ export const useAppStore = create<AppState>((set) => ({
   setGridEnabled: (v) => set({ gridEnabled: v }),
   setGridSize: (v) => set({ gridSize: Math.max(4, v) }),
   setSmartGuidesEnabled: (v) => set({ smartGuidesEnabled: v }),
+
+  integrations: MOCK_INTEGRATIONS,
+
+  slidesIntegrationDismissed: false,
+  slidesActiveIntegrationId: null,
+  slidesIntegrationModalSeen: null,
+  recentColors: ['#4f63f7', '#22c55e', '#f59e0b', '#ef4444', '#f0f2ff', '#0d0f1a', '#748bff', '#8b93c8'],
+  setSlidesIntegrationDismissed: (v) => set({ slidesIntegrationDismissed: v }),
+  setSlidesActiveIntegrationId: (id) => set({ slidesActiveIntegrationId: id }),
+  setSlidesIntegrationModalSeen: (presentationId) => set({ slidesIntegrationModalSeen: presentationId }),
+  addRecentColor: (color) =>
+    set((state) => ({
+      recentColors: state.recentColors.includes(color)
+        ? state.recentColors
+        : [color, ...state.recentColors].slice(0, 8),
+    })),
 }))

@@ -1,6 +1,7 @@
 import type {
   Client,
   Dashboard,
+  Integration,
   Slide,
   SlideElement,
   SlidePresentation,
@@ -75,6 +76,56 @@ export const MOCK_CLIENTS: Client[] = [
     name: 'Magazine Luiza',
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10),
     updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1),
+  },
+]
+
+// ─── Integrations ─────────────────────────────────────────────────────────────
+
+export const MOCK_INTEGRATIONS: Integration[] = [
+  {
+    id: 'int-1',
+    provider: 'google_analytics',
+    name: 'Google Analytics 4',
+    status: 'connected',
+    lastSync: new Date(Date.now() - 1000 * 60 * 30),
+    accountId: 'UA-12345678',
+    accountName: 'Criva Digital',
+  },
+  {
+    id: 'int-2',
+    provider: 'google_ads',
+    name: 'Google Ads',
+    status: 'connected',
+    lastSync: new Date(Date.now() - 1000 * 60 * 45),
+    accountId: 'ADS-9876543',
+    accountName: 'Criva Digital',
+  },
+  {
+    id: 'int-3',
+    provider: 'meta_ads',
+    name: 'Meta Ads',
+    status: 'disconnected',
+  },
+  {
+    id: 'int-4',
+    provider: 'tiktok_ads',
+    name: 'TikTok Ads',
+    status: 'disconnected',
+  },
+  {
+    id: 'int-5',
+    provider: 'linkedin_ads',
+    name: 'LinkedIn Ads',
+    status: 'disconnected',
+  },
+  {
+    id: 'int-6',
+    provider: 'search_console',
+    name: 'Search Console',
+    status: 'connected',
+    lastSync: new Date(Date.now() - 1000 * 60 * 60),
+    accountId: 'SC-55555',
+    accountName: 'criva.digital',
   },
 ]
 

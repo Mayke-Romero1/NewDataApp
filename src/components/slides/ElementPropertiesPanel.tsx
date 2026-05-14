@@ -1,12 +1,14 @@
 import {
   BringToFront, SendToBack, Lock, Unlock, Eye, EyeOff,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Italic, Trash2, Upload, X, RefreshCw, CheckCircle2, AlertCircle,
+  Bold, Italic, Underline, Strikethrough, Droplet, Eraser,
+  Trash2, Upload, X, RefreshCw, CheckCircle2, AlertCircle,
   Type, Square, Image as ImageIcon, BarChart2, TrendingUp,
   Maximize2, RotateCw, Layers, Palette, Hash, ChevronDown,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { SlideElement, SlideDataBinding, SlideElementStyle } from '@/types'
+import { ColorPickerField } from './ColorPickerField'
 import { cn } from '@/lib/utils'
 
 interface ElementPropertiesPanelProps {
@@ -345,12 +347,52 @@ export const ElementPropertiesPanel = ({
   const [sheetsUrlInput, setSheetsUrlInput] = useState(db.sheetsUrl ?? '')
   const [fetchLoading, setFetchLoading] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [alignDropOpen, setAlignDropOpen] = useState(false)
+  const alignDropRef = useRef<HTMLDivElement>(null)
 
   const updateStyle = (patch: Partial<SlideElementStyle>) =>
     onUpdate({ style: { ...style, ...patch } })
 
   const updateBinding = (patch: Partial<SlideDataBinding>) =>
     onUpdate({ dataBinding: { ...db, ...patch } })
+
+  const handleTextDecoration = (decoration: 'underline' | 'line-through') =>
+    updateStyle({ textDecoration: style.textDecoration === decoration ? 'none' : decoration })
+
+  const handleClearFormatting = () =>
+    updateStyle({ fontWeight: undefined, fontStyle: undefined, textDecoration: undefined, textAlign: undefined })
+
+  const parseGradientStr = (v: string): { angle: number; c0: string; c1: string } => {
+    const m = v.match(/linear-gradient\((\d+)deg,\s*(#[0-9a-fA-F]{3,6})\s*,\s*(#[0-9a-fA-F]{3,6})\)/)
+    return m ? { angle: parseInt(m[1]), c0: m[2], c1: m[3] } : { angle: 135, c0: '#4f63f7', c1: '#22c55e' }
+  }
+
+  const bgColorValue = style.gradient?.enabled
+    ? `linear-gradient(${style.gradient.angle}deg, ${style.gradient.colors[0]}, ${style.gradient.colors[1]})`
+    : (style.backgroundColor ?? 'transparent')
+
+  const handleBgColorChange = (v: string) => {
+    if (v.startsWith('linear-gradient')) {
+      const { angle, c0, c1 } = parseGradientStr(v)
+      updateStyle({
+        backgroundColor: undefined,
+        gradient: { enabled: true, type: 'linear' as const, angle, colors: [c0, c1] as [string, string] },
+      })
+    } else {
+      updateStyle({
+        backgroundColor: v === 'transparent' ? undefined : v,
+        gradient: style.gradient ? { ...style.gradient, enabled: false } : undefined,
+      })
+    }
+  }
+
+  const ALIGN_OPTIONS = [
+    { value: 'left' as const, Icon: AlignLeft, label: 'Esquerda' },
+    { value: 'center' as const, Icon: AlignCenter, label: 'Centro' },
+    { value: 'right' as const, Icon: AlignRight, label: 'Direita' },
+    { value: 'justify' as const, Icon: AlignJustify, label: 'Justificado' },
+  ]
+  const currentAlignOption = ALIGN_OPTIONS.find((o) => o.value === (style.textAlign ?? 'left')) ?? ALIGN_OPTIONS[0]
 
   const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -471,112 +513,228 @@ export const ElementPropertiesPanel = ({
       </AccordionSection>
 
       {element.type === 'text' && (
-        <AccordionSection icon={Type} label="Texto" defaultOpen>
-          <ColorPicker label="Cor do texto" value={style.color ?? '#f0f2ff'}
-            onChange={(v) => updateStyle({ color: v })} />
-
-          <div>
-            <label className="text-[10px] text-[var(--text-muted)] block mb-1">Cor de fundo</label>
-            <div className="flex items-center gap-1.5">
-              <input type="color" value={style.backgroundColor ?? '#00000000'}
-                onChange={(e) => updateStyle({ backgroundColor: e.target.value })}
-                className="w-7 h-7 rounded cursor-pointer border border-[var(--border)] bg-transparent p-0.5 flex-shrink-0" />
-              <button onClick={() => updateStyle({ backgroundColor: undefined })}
-                className="btn-secondary text-[10px] h-7 px-2 py-0">
-                Transparente
-              </button>
+        <>
+          <AccordionSection icon={Type} label="Fonte" defaultOpen>
+            <div>
+              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Tipo de fonte</label>
+              <select className="input text-xs py-1.5 h-8" value={style.fontFamily ?? 'DM Sans, sans-serif'}
+                onChange={(e) => updateStyle({ fontFamily: e.target.value })}>
+                {FONT_OPTIONS.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          <GradientControls gradient={style.gradient}
-            onChange={(g) => updateStyle({ gradient: g })} />
+            <ColorPickerField
+              label="Cor da fonte"
+              value={style.color ?? '#f0f2ff'}
+              onChange={(v) => updateStyle({ color: v })}
+              allowGradient
+            />
 
-          <div>
-            <label className="text-[10px] text-[var(--text-muted)] block mb-1">Fonte</label>
-            <select className="input text-xs py-1.5 h-8" value={style.fontFamily ?? 'DM Sans, sans-serif'}
-              onChange={(e) => updateStyle({ fontFamily: e.target.value })}>
-              {FONT_OPTIONS.map(({ value, label }) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] text-[var(--text-muted)]">Tamanho</label>
+                <input
+                  type="number" min={8} max={200}
+                  value={style.fontSize ?? 16}
+                  onChange={(e) => updateStyle({ fontSize: Math.min(200, Math.max(8, Number(e.target.value))) })}
+                  className="input text-[10px] h-6 py-0 px-1.5 w-14 font-mono text-right"
+                />
+              </div>
+              <input
+                type="range" min={8} max={200} value={style.fontSize ?? 16}
+                onChange={(e) => updateStyle({ fontSize: Number(e.target.value) })}
+                className="w-full accent-[#4f63f7]"
+              />
+            </div>
 
-          <SliderRow label="Tamanho" value={style.fontSize ?? 16} min={8} max={96}
-            display={`${style.fontSize ?? 16}px`}
-            onChange={(v) => updateStyle({ fontSize: v })} />
-
-          <div>
-            <label className="text-[10px] text-[var(--text-muted)] block mb-1">Peso</label>
-            <div className="flex gap-1">
-              {(['normal', 'medium', 'semibold', 'bold'] as const).map((w) => (
-                <button key={w} onClick={() => updateStyle({ fontWeight: w })}
-                  className={cn('flex-1 h-7 text-[9px] rounded border transition-colors capitalize',
-                    (style.fontWeight ?? 'normal') === w
-                      ? 'bg-[rgba(79,99,247,0.2)] border-[#4f63f7] text-[#748bff]'
-                      : 'border-[var(--border)] text-[var(--text-muted)]')}>
-                  {w === 'semibold' ? '600' : w === 'medium' ? '500' : w === 'bold' ? '700' : '400'}
+            <div>
+              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Formatação</label>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => updateStyle({ fontWeight: style.fontWeight === 'bold' ? 'normal' : 'bold' })}
+                  className={cn('w-8 h-8 flex items-center justify-center rounded border transition-colors font-bold',
+                    style.fontWeight === 'bold' ? 'bg-[rgba(79,99,247,0.2)] border-[#4f63f7] text-[#748bff]' : 'border-[var(--border)] text-[var(--text-muted)]')}
+                >
+                  <Bold size={13} />
                 </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[10px] text-[var(--text-muted)] block mb-1">Estilo & Alinhamento</label>
-            <div className="flex gap-1">
-              <button onClick={() => updateStyle({ fontStyle: style.fontStyle === 'italic' ? 'normal' : 'italic' })}
-                className={cn('w-8 h-8 flex items-center justify-center rounded border transition-colors',
-                  style.fontStyle === 'italic' ? 'bg-[rgba(79,99,247,0.2)] border-[#4f63f7] text-[#748bff]' : 'border-[var(--border)] text-[var(--text-muted)]')}>
-                <Italic size={13} />
-              </button>
-              {([
-                ['left', AlignLeft],
-                ['center', AlignCenter],
-                ['right', AlignRight],
-                ['justify', AlignJustify],
-              ] as [string, React.ElementType][]).map(([align, Icon]) => (
-                <button key={align} onClick={() => updateStyle({ textAlign: align as SlideElementStyle['textAlign'] })}
+                <button
+                  type="button"
+                  onClick={() => updateStyle({ fontStyle: style.fontStyle === 'italic' ? 'normal' : 'italic' })}
                   className={cn('w-8 h-8 flex items-center justify-center rounded border transition-colors',
-                    style.textAlign === align ? 'bg-[rgba(79,99,247,0.2)] border-[#4f63f7] text-[#748bff]' : 'border-[var(--border)] text-[var(--text-muted)]')}>
-                  <Icon size={13} />
+                    style.fontStyle === 'italic' ? 'bg-[rgba(79,99,247,0.2)] border-[#4f63f7] text-[#748bff]' : 'border-[var(--border)] text-[var(--text-muted)]')}
+                >
+                  <Italic size={13} />
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => handleTextDecoration('underline')}
+                  className={cn('w-8 h-8 flex items-center justify-center rounded border transition-colors',
+                    style.textDecoration === 'underline' ? 'bg-[rgba(79,99,247,0.2)] border-[#4f63f7] text-[#748bff]' : 'border-[var(--border)] text-[var(--text-muted)]')}
+                >
+                  <Underline size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTextDecoration('line-through')}
+                  className={cn('w-8 h-8 flex items-center justify-center rounded border transition-colors',
+                    style.textDecoration === 'line-through' ? 'bg-[rgba(79,99,247,0.2)] border-[#4f63f7] text-[#748bff]' : 'border-[var(--border)] text-[var(--text-muted)]')}
+                >
+                  <Strikethrough size={13} />
+                </button>
+              </div>
             </div>
-          </div>
 
-          <SliderRow label="Altura de linha" value={style.lineHeight ?? 1.3} min={0.8} max={3} step={0.1}
-            display={(style.lineHeight ?? 1.3).toFixed(1)}
-            onChange={(v) => updateStyle({ lineHeight: v })} />
+            <div>
+              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Alinhamento</label>
+              <div className="relative" ref={alignDropRef}>
+                <button
+                  type="button"
+                  onClick={() => setAlignDropOpen((v) => !v)}
+                  className="flex items-center gap-2 w-full h-8 px-2.5 rounded border border-[var(--border)] hover:border-[rgba(255,255,255,0.2)] bg-[rgba(255,255,255,0.03)] transition-colors"
+                >
+                  <currentAlignOption.Icon size={13} className="text-[var(--text-secondary)]" />
+                  <span className="text-xs text-[var(--text-secondary)] flex-1 text-left">{currentAlignOption.label}</span>
+                  <ChevronDown size={10} className={cn('text-[var(--text-muted)] transition-transform', alignDropOpen && 'rotate-180')} />
+                </button>
+                {alignDropOpen && (
+                  <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg shadow-xl overflow-hidden">
+                    {ALIGN_OPTIONS.map(({ value, Icon, label }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => { updateStyle({ textAlign: value }); setAlignDropOpen(false) }}
+                        className={cn(
+                          'flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors hover:bg-[var(--bg-glass)]',
+                          style.textAlign === value ? 'text-[#748bff]' : 'text-[var(--text-secondary)]'
+                        )}
+                      >
+                        <Icon size={13} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
-          <SliderRow label="Espaçamento" value={style.letterSpacing ?? 0} min={-2} max={10} step={0.5}
-            display={`${(style.letterSpacing ?? 0)}px`}
-            onChange={(v) => updateStyle({ letterSpacing: v })} />
+            <button
+              type="button"
+              onClick={handleClearFormatting}
+              className="w-full btn-secondary text-xs h-8 py-0 gap-2"
+            >
+              <Eraser size={12} />
+              Remover Formatação
+            </button>
 
-          <div className="space-y-2">
-            <ToggleRow label="Sombra de texto" checked={style.textShadow?.enabled ?? false}
-              onChange={(v) => updateStyle({ textShadow: { enabled: v, color: style.textShadow?.color ?? '#000000', blur: style.textShadow?.blur ?? 4, offsetX: style.textShadow?.offsetX ?? 2, offsetY: style.textShadow?.offsetY ?? 2 } })} />
-            {style.textShadow?.enabled && (
-              <>
-                <ColorPicker label="Cor da sombra" value={style.textShadow.color}
-                  onChange={(v) => updateStyle({ textShadow: { ...style.textShadow!, color: v } })} />
-                <SliderRow label="Blur" value={style.textShadow.blur} min={0} max={20}
-                  display={`${style.textShadow.blur}px`}
-                  onChange={(v) => updateStyle({ textShadow: { ...style.textShadow!, blur: v } })} />
-                <div className="grid grid-cols-2 gap-1.5">
-                  <div>
+            <SliderRow label="Espaçamento" value={style.letterSpacing ?? 0} min={-2} max={10} step={0.5}
+              display={`${(style.letterSpacing ?? 0)}px`}
+              onChange={(v) => updateStyle({ letterSpacing: v })} />
+
+            <div className="space-y-2">
+              <ToggleRow label="Sombra de texto" checked={style.textShadow?.enabled ?? false}
+                onChange={(v) => updateStyle({ textShadow: { enabled: v, color: style.textShadow?.color ?? '#000000', blur: style.textShadow?.blur ?? 4, offsetX: style.textShadow?.offsetX ?? 2, offsetY: style.textShadow?.offsetY ?? 2 } })} />
+              {style.textShadow?.enabled && (
+                <>
+                  <ColorPicker label="Cor da sombra" value={style.textShadow.color}
+                    onChange={(v) => updateStyle({ textShadow: { ...style.textShadow!, color: v } })} />
+                  <SliderRow label="Blur" value={style.textShadow.blur} min={0} max={20}
+                    display={`${style.textShadow.blur}px`}
+                    onChange={(v) => updateStyle({ textShadow: { ...style.textShadow!, blur: v } })} />
+                  <div className="grid grid-cols-2 gap-1.5">
                     <SliderRow label="Offset X" value={style.textShadow.offsetX} min={-20} max={20}
                       display={`${style.textShadow.offsetX}px`}
                       onChange={(v) => updateStyle({ textShadow: { ...style.textShadow!, offsetX: v } })} />
-                  </div>
-                  <div>
                     <SliderRow label="Offset Y" value={style.textShadow.offsetY} min={-20} max={20}
                       display={`${style.textShadow.offsetY}px`}
                       onChange={(v) => updateStyle({ textShadow: { ...style.textShadow!, offsetY: v } })} />
                   </div>
+                </>
+              )}
+            </div>
+          </AccordionSection>
+
+          <AccordionSection icon={Maximize2} label="Padding" defaultOpen>
+            <div className="grid grid-cols-2 gap-1.5">
+              <NumInput label="Altura da linha" value={style.lineHeight ?? 24} onChange={(v) => updateStyle({ lineHeight: v })} min={0} />
+              <NumInput label="Esquerda" value={style.paddingLeft ?? 8} onChange={(v) => updateStyle({ paddingLeft: v })} min={0} />
+              <NumInput label="Direita" value={style.paddingRight ?? 8} onChange={(v) => updateStyle({ paddingRight: v })} min={0} />
+              <NumInput label="Superior" value={style.paddingTop ?? 8} onChange={(v) => updateStyle({ paddingTop: v })} min={0} />
+            </div>
+          </AccordionSection>
+
+          <AccordionSection icon={Palette} label="Plano de fundo" defaultOpen>
+            <ColorPickerField
+              label="Cenário"
+              value={bgColorValue}
+              onChange={handleBgColorChange}
+              allowGradient
+            />
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1">
+                  <Droplet size={10} className="text-[var(--text-muted)]" />
+                  <label className="text-[10px] text-[var(--text-muted)]">Opacidade</label>
                 </div>
-              </>
-            )}
-          </div>
-        </AccordionSection>
+                <span className="text-[10px] font-mono text-[var(--text-secondary)]">{style.fillOpacity ?? 100}%</span>
+              </div>
+              <input
+                type="range" min={0} max={100} value={style.fillOpacity ?? 100}
+                onChange={(e) => updateStyle({ fillOpacity: Number(e.target.value) })}
+                className="w-full accent-[#4f63f7]"
+              />
+            </div>
+
+            <ColorPickerField
+              label="Cor da borda"
+              value={style.borderColor ?? 'transparent'}
+              onChange={(v) => updateStyle({ borderColor: v === 'transparent' ? undefined : v })}
+            />
+
+            <div>
+              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Raio da borda</label>
+              <select
+                className="input text-xs py-1.5 h-8"
+                value={style.borderRadius ?? 2}
+                onChange={(e) => updateStyle({ borderRadius: Number(e.target.value) })}
+              >
+                {Array.from({ length: 51 }, (_, i) => i * 2).map((v) => (
+                  <option key={v} value={v}>{v}px</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Espessura da borda</label>
+              <select
+                className="input text-xs py-1.5 h-8"
+                value={style.borderWidth ?? 1}
+                onChange={(e) => updateStyle({ borderWidth: Number(e.target.value) })}
+              >
+                {[1, 2, 3, 4, 5].map((v) => (
+                  <option key={v} value={v}>{v}px</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-[var(--text-muted)] block mb-1">Estilo da borda</label>
+              <select
+                className="input text-xs py-1.5 h-8"
+                value={style.borderStyle ?? 'solid'}
+                onChange={(e) => updateStyle({ borderStyle: e.target.value as SlideElementStyle['borderStyle'] })}
+              >
+                <option value="solid">Sólida</option>
+                <option value="dashed">Tracejada</option>
+                <option value="dotted">Pontilhada</option>
+                <option value="double">Dupla</option>
+              </select>
+            </div>
+          </AccordionSection>
+        </>
       )}
 
       {element.type === 'shape' && (

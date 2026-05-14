@@ -109,7 +109,11 @@ export interface SlideElementStyle {
   borderRadius?: number
   borderColor?: string
   borderWidth?: number
-  borderStyle?: 'solid' | 'dashed' | 'dotted'
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'double'
+  textDecoration?: 'none' | 'underline' | 'line-through'
+  paddingLeft?: number
+  paddingRight?: number
+  paddingTop?: number
   padding?: number
   cropX?: number
   cropY?: number

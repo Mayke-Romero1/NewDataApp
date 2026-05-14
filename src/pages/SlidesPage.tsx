@@ -14,6 +14,8 @@ import { SlideCanvas } from '@/components/slides/SlideCanvas'
 import { SlideThumbnailStrip } from '@/components/slides/SlideThumbnailStrip'
 import { SlideEditorPanel } from '@/components/slides/SlideEditorPanel'
 import { SlideElementRenderer } from '@/components/slides/SlideElementRenderer'
+import { IntegrationPromptModal } from '@/components/slides/IntegrationPromptModal'
+import { SlideDataPanel } from '@/components/slides/SlideDataPanel'
 import { cn } from '@/lib/utils'
 
 const CANVAS_W = 1280
@@ -247,6 +249,11 @@ export const SlidesPage = () => {
     smartGuidesEnabled,
     setGridEnabled,
     setSmartGuidesEnabled,
+    slidesIntegrationDismissed,
+    slidesActiveIntegrationId,
+    slidesIntegrationModalSeen,
+    setSlidesIntegrationDismissed,
+    setSlidesActiveIntegrationId,
   } = useAppStore()
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
@@ -257,6 +264,7 @@ export const SlidesPage = () => {
   const [isThumbnailCollapsed, setIsThumbnailCollapsed] = useState(false)
   const [isEditorCollapsed, setIsEditorCollapsed] = useState(false)
   const [isPresentMode, setIsPresentMode] = useState(false)
+  const [showIntegrationModal, setShowIntegrationModal] = useState(false)
 
   const activePresentation = presentations.find((p) => p.id === activePresentationId) ?? presentations[0]
   const activeSlide = activePresentation?.slides[activeSlideIndex] ?? activePresentation?.slides[0]
@@ -268,6 +276,27 @@ export const SlidesPage = () => {
     const slide = activeSlidRef.current
     if (!slide) return
     setUndoHistory((prev) => [...prev.slice(-29), [...slide.elements]])
+  }
+
+  useEffect(() => {
+    if (activePresentationId && slidesIntegrationModalSeen !== activePresentationId) {
+      setShowIntegrationModal(true)
+    }
+  }, [activePresentationId])
+
+  useEffect(() => {
+    setSlidesIntegrationDismissed(false)
+    setSlidesActiveIntegrationId(null)
+  }, [activePresentationId])
+
+  const handleAddMetricElement = (metric: string) => {
+    if (!activePresentation || !activeSlide) return
+    const maxZ = activeSlide.elements.reduce((m, el) => Math.max(m, el.zIndex), 0)
+    const el = buildDefaultElement('kpi', maxZ + 1)
+    const kpiEl: SlideElement = { ...el, dataBinding: { ...el.dataBinding, metric } }
+    pushUndo()
+    addElement(activePresentation.id, activeSlide.id, kpiEl)
+    setSelectedElementIds([kpiEl.id])
   }
 
   const handleAddSlide = () => {
@@ -511,6 +540,8 @@ export const SlidesPage = () => {
   if (!activePresentation || !activeSlide) return null
 
   const selectedElementId = selectedElementIds[selectedElementIds.length - 1] ?? null
+  const showBothPanels = !slidesIntegrationDismissed && slidesActiveIntegrationId !== null
+  const showEditorOnly = slidesIntegrationDismissed
 
   return (
     <div
@@ -523,6 +554,13 @@ export const SlidesPage = () => {
           slides={activePresentation.slides}
           initialIndex={activeSlideIndex}
           onClose={() => setIsPresentMode(false)}
+        />
+      )}
+
+      {showIntegrationModal && activePresentationId && (
+        <IntegrationPromptModal
+          activePresentationId={activePresentationId}
+          onClose={() => setShowIntegrationModal(false)}
         />
       )}
 
@@ -662,18 +700,42 @@ export const SlidesPage = () => {
             }}
           />
 
-          <SlideEditorPanel
-            slide={activeSlide}
-            slideIndex={activeSlideIndex}
-            slideCount={activePresentation.slides.length}
-            selectedElementId={selectedElementId}
-            isCollapsed={isEditorCollapsed}
-            onUpdateSlide={handleUpdateSlide}
-            onUpdateElement={handleUpdateElement}
-            onDeleteElement={handleDeleteElement}
-            onReorderElement={handleReorderElement}
-            onToggleCollapse={() => setIsEditorCollapsed((v) => !v)}
-          />
+          {showBothPanels && (
+            <>
+              <SlideEditorPanel
+                slide={activeSlide}
+                slideIndex={activeSlideIndex}
+                slideCount={activePresentation.slides.length}
+                selectedElementId={selectedElementId}
+                isCollapsed={isEditorCollapsed}
+                onUpdateSlide={handleUpdateSlide}
+                onUpdateElement={handleUpdateElement}
+                onDeleteElement={handleDeleteElement}
+                onReorderElement={handleReorderElement}
+                onToggleCollapse={() => setIsEditorCollapsed((v) => !v)}
+              />
+              <SlideDataPanel
+                integrationId={slidesActiveIntegrationId!}
+                onChangeIntegration={() => setShowIntegrationModal(true)}
+                onAddMetricElement={handleAddMetricElement}
+              />
+            </>
+          )}
+
+          {showEditorOnly && !showBothPanels && (
+            <SlideEditorPanel
+              slide={activeSlide}
+              slideIndex={activeSlideIndex}
+              slideCount={activePresentation.slides.length}
+              selectedElementId={selectedElementId}
+              isCollapsed={isEditorCollapsed}
+              onUpdateSlide={handleUpdateSlide}
+              onUpdateElement={handleUpdateElement}
+              onDeleteElement={handleDeleteElement}
+              onReorderElement={handleReorderElement}
+              onToggleCollapse={() => setIsEditorCollapsed((v) => !v)}
+            />
+          )}
         </div>
       </div>
     </div>
