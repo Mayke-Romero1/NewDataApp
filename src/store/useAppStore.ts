@@ -67,6 +67,7 @@ interface AppState {
 
   // Integrations
   integrations: Integration[]
+  updateIntegrationStatus: (provider: string, status: Integration['status']) => void
 
   // Slides integration state
   slidesIntegrationDismissed: boolean
@@ -77,6 +78,13 @@ interface AppState {
   setSlidesActiveIntegrationId: (id: string | null) => void
   setSlidesIntegrationModalSeen: (presentationId: string) => void
   addRecentColor: (color: string) => void
+
+  // Slides canvas/editor UI
+  slidesZoom: number
+  setSlidesZoom: (v: number) => void
+  slidesUpdatesActive: boolean
+  toggleSlidesUpdates: () => void
+  renamePresentation: (id: string, name: string) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -449,6 +457,12 @@ export const useAppStore = create<AppState>((set) => ({
   setSmartGuidesEnabled: (v) => set({ smartGuidesEnabled: v }),
 
   integrations: MOCK_INTEGRATIONS,
+  updateIntegrationStatus: (provider, status) =>
+    set((state) => ({
+      integrations: state.integrations.map((i) =>
+        i.provider === provider ? { ...i, status, lastSync: status === 'connected' ? new Date() : i.lastSync } : i
+      ),
+    })),
 
   slidesIntegrationDismissed: false,
   slidesActiveIntegrationId: null,
@@ -462,5 +476,16 @@ export const useAppStore = create<AppState>((set) => ({
       recentColors: state.recentColors.includes(color)
         ? state.recentColors
         : [color, ...state.recentColors].slice(0, 8),
+    })),
+
+  slidesZoom: 1,
+  setSlidesZoom: (v) => set({ slidesZoom: v }),
+  slidesUpdatesActive: true,
+  toggleSlidesUpdates: () => set((state) => ({ slidesUpdatesActive: !state.slidesUpdatesActive })),
+  renamePresentation: (id, name) =>
+    set((state) => ({
+      presentations: state.presentations.map((p) =>
+        p.id === id ? { ...p, name, updatedAt: new Date() } : p
+      ),
     })),
 }))

@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { X, CheckCircle2, Circle, BarChart2, Search, ShoppingBag, Globe, Video, Briefcase, FileSpreadsheet, Plus } from 'lucide-react'
+import { X, CheckCircle2, Circle, BarChart2, Search, ShoppingBag, Globe, Video, Briefcase, FileSpreadsheet, Plus, Loader2 } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import type { IntegrationProvider } from '@/types'
 import { cn } from '@/lib/utils'
 import { GoogleSheetConnectModal } from '@/components/shared/GoogleSheetConnectModal'
 import { ExcelUploadModal } from '@/components/shared/ExcelUploadModal'
+import { useConnectIntegrationMutation } from '@/hooks/mutations/useConnectIntegrationMutation'
 
 interface IntegrationPromptModalProps {
   activePresentationId: string
@@ -32,6 +33,7 @@ export const IntegrationPromptModal = ({ activePresentationId, onClose }: Integr
 
   const [sheetsOpen, setSheetsOpen] = useState(false)
   const [excelOpen, setExcelOpen] = useState(false)
+  const connectMutation = useConnectIntegrationMutation()
 
   const handleSelectIntegration = (integrationId: string) => {
     setSlidesActiveIntegrationId(integrationId)
@@ -119,10 +121,12 @@ export const IntegrationPromptModal = ({ activePresentationId, onClose }: Integr
                 {disconnected.map((integration) => {
                   const meta = PROVIDER_META[integration.provider]
                   const Icon = meta.icon
+                  const isSpreadsheet = integration.provider === 'google_sheets' || integration.provider === 'microsoft_excel'
+                  const isConnecting = connectMutation.isPending && connectMutation.variables === integration.provider
                   return (
                     <div
                       key={integration.id}
-                      className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] opacity-50"
+                      className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] hover:border-[rgba(79,99,247,0.3)] transition-colors"
                     >
                       <div className="w-8 h-8 rounded-lg bg-[rgba(255,255,255,0.04)] flex items-center justify-center flex-shrink-0">
                         <Icon size={16} className="text-[var(--text-muted)]" />
@@ -134,6 +138,17 @@ export const IntegrationPromptModal = ({ activePresentationId, onClose }: Integr
                           <span className="text-[10px] text-[var(--text-muted)]">Desconectado</span>
                         </div>
                       </div>
+                      {!isSpreadsheet && (
+                        <button
+                          type="button"
+                          onClick={() => connectMutation.mutate(integration.provider)}
+                          disabled={connectMutation.isPending}
+                          className="btn-primary text-[10px] h-7 py-0 px-3 flex-shrink-0 flex items-center gap-1"
+                        >
+                          {isConnecting ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                          Conectar
+                        </button>
+                      )}
                     </div>
                   )
                 })}

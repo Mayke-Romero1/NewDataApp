@@ -9,4 +9,7 @@ export const useConnectIntegrationMutation = () =>
       sessionStorage.setItem('oauth_state', state)
       window.location.href = url
     },
+    onError: () => {
+      alert('Não foi possível conectar. Verifique se o backend está rodando em http://localhost:3000')
+    },
   })

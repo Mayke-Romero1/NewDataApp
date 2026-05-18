@@ -1,14 +1,14 @@
 import {
-  Download, Share2, Play, X, ChevronLeft, ChevronRight,
+  Share2, Play, X, ChevronLeft, ChevronRight,
   Type, Image, BarChart2, Layers,
   AlignStartVertical, AlignCenterVertical, AlignEndVertical,
   AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal,
   AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter,
-  Grid, Magnet,
+  Grid3x3, Magnet, Undo2, Redo2, MousePointer2, Database,
+  ChevronDown, MoreHorizontal, Palette, PauseCircle, PlayCircle, Zap,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
-import { formatRelativeTime } from '@/lib/utils'
 import type { Slide, SlideElement, SlideElementType } from '@/types'
 import { SlideCanvas } from '@/components/slides/SlideCanvas'
 import { SlideThumbnailStrip } from '@/components/slides/SlideThumbnailStrip'
@@ -22,12 +22,31 @@ import { cn } from '@/lib/utils'
 const CANVAS_W = 1280
 const CANVAS_H = 720
 
-const ELEMENT_TOOLS: { icon: React.ElementType; label: string; type: SlideElementType }[] = [
-  { icon: Type, label: 'Texto', type: 'text' },
-  { icon: Image, label: 'Imagem', type: 'image' },
-  { icon: BarChart2, label: 'Gráfico', type: 'chart' },
-  { icon: Layers, label: 'Shape', type: 'shape' },
+const ZOOM_OPTIONS = [
+  { label: '50%', value: 0.5 },
+  { label: '75%', value: 0.75 },
+  { label: '100%', value: 1 },
+  { label: '125%', value: 1.25 },
+  { label: '150%', value: 1.5 },
 ]
+
+type ChartKind = 'area' | 'bar' | 'line' | 'bar_horizontal' | 'pie' | 'donut' | 'scatter'
+
+interface ChartOption { label: string; chartType: ChartKind | 'kpi' }
+
+const CHART_OPTIONS: ChartOption[] = [
+  { label: 'Área', chartType: 'area' },
+  { label: 'Linha', chartType: 'line' },
+  { label: 'Barras', chartType: 'bar' },
+  { label: 'Pizza', chartType: 'pie' },
+  { label: 'Donut', chartType: 'donut' },
+  { label: 'KPI', chartType: 'kpi' },
+]
+
+const CONTROL_OPTIONS = ['Filtro de data', 'Filtro de texto', 'Seletor']
+
+const MENU_ITEMS = ['Arquivo', 'Editar', 'Exibir', 'Inserir', 'Organizar', 'Ajuda'] as const
+type MenuKey = typeof MENU_ITEMS[number]
 
 const buildDefaultElement = (type: SlideElementType, zIndex: number): SlideElement => {
   const base = {
@@ -116,34 +135,16 @@ const PresentationOverlay = ({ slides, initialIndex, onClose }: PresentationOver
   return (
     <div
       style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        background: '#000',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        position: 'fixed', inset: 0, zIndex: 9999, background: '#000',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
     >
-      <div
-        style={{
-          width: CANVAS_W * scale,
-          height: CANVAS_H * scale,
-          position: 'relative',
-          flexShrink: 0,
-          overflow: 'hidden',
-        }}
-      >
+      <div style={{ width: CANVAS_W * scale, height: CANVAS_H * scale, position: 'relative', flexShrink: 0, overflow: 'hidden' }}>
         <div
           style={{
-            width: CANVAS_W,
-            height: CANVAS_H,
-            transform: `scale(${scale})`,
-            transformOrigin: 'top left',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            background: slide.background,
+            width: CANVAS_W, height: CANVAS_H,
+            transform: `scale(${scale})`, transformOrigin: 'top left',
+            position: 'absolute', top: 0, left: 0, background: slide.background,
           }}
         >
           {[...slide.elements]
@@ -153,13 +154,9 @@ const PresentationOverlay = ({ slides, initialIndex, onClose }: PresentationOver
               <div
                 key={el.id}
                 style={{
-                  position: 'absolute',
-                  left: el.x,
-                  top: el.y,
-                  width: el.width,
-                  height: el.height,
-                  transform: `rotate(${el.rotation}deg)`,
-                  opacity: el.opacity,
+                  position: 'absolute', left: el.x, top: el.y,
+                  width: el.width, height: el.height,
+                  transform: `rotate(${el.rotation}deg)`, opacity: el.opacity,
                 }}
               >
                 <SlideElementRenderer element={el} />
@@ -227,6 +224,10 @@ const PresentationOverlay = ({ slides, initialIndex, onClose }: PresentationOver
   )
 }
 
+const Separator = () => (
+  <div className="w-px h-5 bg-[var(--border)] flex-shrink-0 mx-0.5" />
+)
+
 export const SlidesPage = () => {
   const {
     presentations,
@@ -255,6 +256,12 @@ export const SlidesPage = () => {
     slidesIntegrationModalSeen,
     setSlidesIntegrationDismissed,
     setSlidesActiveIntegrationId,
+    slidesZoom,
+    setSlidesZoom,
+    slidesUpdatesActive,
+    toggleSlidesUpdates,
+    renamePresentation,
+    setActiveApp,
   } = useAppStore()
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
@@ -268,16 +275,53 @@ export const SlidesPage = () => {
   const [showIntegrationModal, setShowIntegrationModal] = useState(false)
   const [newSlideModalOpen, setNewSlideModalOpen] = useState(false)
 
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editingTitle, setEditingTitle] = useState('')
+  const [openMenu, setOpenMenu] = useState<MenuKey | null>(null)
+  const [openChartDropdown, setOpenChartDropdown] = useState(false)
+  const [openControlDropdown, setOpenControlDropdown] = useState(false)
+  const [openZoomDropdown, setOpenZoomDropdown] = useState(false)
+
+  const menuBarRef = useRef<HTMLDivElement>(null)
+  const titleInputRef = useRef<HTMLInputElement>(null)
+  const activeSlidRef = useRef<Slide | undefined>(undefined)
+
   const activePresentation = presentations.find((p) => p.id === activePresentationId) ?? presentations[0]
   const activeSlide = activePresentation?.slides[activeSlideIndex] ?? activePresentation?.slides[0]
-
-  const activeSlidRef = useRef(activeSlide)
   useEffect(() => { activeSlidRef.current = activeSlide }, [activeSlide])
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (!menuBarRef.current?.contains(e.target as Node)) {
+        setOpenMenu(null)
+        setOpenChartDropdown(false)
+        setOpenControlDropdown(false)
+        setOpenZoomDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [])
+
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus()
+      titleInputRef.current.select()
+    }
+  }, [isEditingTitle])
 
   const pushUndo = () => {
     const slide = activeSlidRef.current
     if (!slide) return
     setUndoHistory((prev) => [...prev.slice(-29), [...slide.elements]])
+  }
+
+  const handleUndo = () => {
+    if (!activePresentation || !activeSlide || undoHistory.length === 0) return
+    const snapshot = undoHistory[undoHistory.length - 1]
+    setUndoHistory((prev) => prev.slice(0, -1))
+    replaceSlideElements(activePresentation.id, activeSlide.id, snapshot)
+    setSelectedElementIds([])
   }
 
   useEffect(() => {
@@ -290,6 +334,18 @@ export const SlidesPage = () => {
     setSlidesIntegrationDismissed(false)
     setSlidesActiveIntegrationId(null)
   }, [activePresentationId])
+
+  const handleStartTitleEdit = () => {
+    setEditingTitle(activePresentation?.name ?? '')
+    setIsEditingTitle(true)
+  }
+
+  const handleConfirmTitleEdit = () => {
+    if (activePresentation && editingTitle.trim()) {
+      renamePresentation(activePresentation.id, editingTitle.trim())
+    }
+    setIsEditingTitle(false)
+  }
 
   const handleAddMetricElement = (metric: string) => {
     if (!activePresentation || !activeSlide) return
@@ -314,9 +370,7 @@ export const SlidesPage = () => {
     setSelectedElementIds([])
   }
 
-  const handleAddSlide = () => {
-    setNewSlideModalOpen(true)
-  }
+  const handleAddSlide = () => setNewSlideModalOpen(true)
 
   const handleSelectSlide = (index: number) => {
     setActiveSlideIndex(index)
@@ -358,6 +412,19 @@ export const SlidesPage = () => {
     pushUndo()
     addElement(activePresentation.id, activeSlide.id, el)
     setSelectedElementIds([el.id])
+  }
+
+  const handleAddChart = (opt: ChartOption) => {
+    if (!activePresentation || !activeSlide) return
+    const maxZ = activeSlide.elements.reduce((m, el) => Math.max(m, el.zIndex), 0)
+    const el = buildDefaultElement(opt.chartType === 'kpi' ? 'kpi' : 'chart', maxZ + 1)
+    const withType: SlideElement = opt.chartType !== 'kpi'
+      ? { ...el, dataBinding: { ...(el.dataBinding ?? {}), chartType: opt.chartType as ChartKind } }
+      : el
+    pushUndo()
+    addElement(activePresentation.id, activeSlide.id, withType)
+    setSelectedElementIds([withType.id])
+    setOpenChartDropdown(false)
   }
 
   const handleUpdateElement = (elementId: string, patch: Partial<SlideElement>) => {
@@ -442,7 +509,6 @@ export const SlidesPage = () => {
     const cy = (minY + maxY) / 2
 
     let patches: Array<{ elementId: string; patch: Partial<SlideElement> }> = []
-
     if (type === 'left') patches = els.map((el) => ({ elementId: el.id, patch: { x: minX } }))
     else if (type === 'centerH') patches = els.map((el) => ({ elementId: el.id, patch: { x: Math.round(cx - el.width / 2) } }))
     else if (type === 'right') patches = els.map((el) => ({ elementId: el.id, patch: { x: maxX - el.width } }))
@@ -455,8 +521,7 @@ export const SlidesPage = () => {
       const gap = (maxX - minX - totalW) / (sorted.length - 1)
       let cur = minX
       patches = sorted.map((el) => { const x = Math.round(cur); cur += el.width + gap; return { elementId: el.id, patch: { x } } })
-    }
-    else if (type === 'distributeV' && els.length >= 3) {
+    } else if (type === 'distributeV' && els.length >= 3) {
       const sorted = [...els].sort((a, b) => a.y - b.y)
       const totalH = sorted.reduce((s, el) => s + el.height, 0)
       const gap = (maxY - minY - totalH) / (sorted.length - 1)
@@ -520,11 +585,7 @@ export const SlidesPage = () => {
       }
       if (e.key === 'z' && !isInputFocused) {
         e.preventDefault()
-        if (!activePresentation || !activeSlide || undoHistory.length === 0) return
-        const snapshot = undoHistory[undoHistory.length - 1]
-        setUndoHistory((prev) => prev.slice(0, -1))
-        replaceSlideElements(activePresentation.id, activeSlide.id, snapshot)
-        setSelectedElementIds([])
+        handleUndo()
         return
       }
       if ((e.key === 'g' || e.key === 'G') && !isInputFocused) {
@@ -543,15 +604,64 @@ export const SlidesPage = () => {
     }
   }
 
+  const getMenuItems = (menu: MenuKey): Array<{ label: string; action: () => void; active?: boolean }> => {
+    switch (menu) {
+      case 'Arquivo':
+        return [
+          { label: 'Novo slide', action: handleAddSlide },
+          { label: 'Exportar', action: () => {} },
+          { label: 'Redefinir', action: () => {} },
+        ]
+      case 'Editar':
+        return [
+          { label: 'Desfazer', action: handleUndo },
+          { label: 'Recortar', action: () => {} },
+          { label: 'Copiar', action: () => { const sel = activeSlide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? []; if (sel.length) setClipboard(sel) } },
+          { label: 'Colar', action: () => { if (!activePresentation || !activeSlide || !clipboard?.length) return; pushUndo(); const newIds: string[] = []; clipboard.forEach((el) => { const newEl: SlideElement = { ...el, id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, x: el.x + 10, y: el.y + 10 }; addElement(activePresentation.id, activeSlide.id, newEl); newIds.push(newEl.id) }); setSelectedElementIds(newIds) } },
+          { label: 'Selecionar tudo', action: () => setSelectedElementIds(activeSlide?.elements.map((el) => el.id) ?? []) },
+        ]
+      case 'Exibir':
+        return [
+          { label: 'Grade', action: () => setGridEnabled(!gridEnabled), active: gridEnabled },
+          { label: 'Guias inteligentes', action: () => setSmartGuidesEnabled(!smartGuidesEnabled), active: smartGuidesEnabled },
+          { label: 'Modo apresentação', action: () => { setIsPresentMode(true); setOpenMenu(null) } },
+        ]
+      case 'Inserir':
+        return [
+          { label: 'Texto', action: () => handleAddElement('text') },
+          { label: 'Imagem', action: () => handleAddElement('image') },
+          { label: 'Gráfico', action: () => handleAddElement('chart') },
+          { label: 'Shape', action: () => handleAddElement('shape') },
+          { label: 'KPI', action: () => handleAddElement('kpi') },
+        ]
+      case 'Organizar':
+        return [
+          { label: 'Agrupar', action: handleGroupElements },
+          { label: 'Trazer à frente', action: () => { if (selectedElementIds[0]) handleReorderElement(selectedElementIds[0], 'front') } },
+          { label: 'Enviar para trás', action: () => { if (selectedElementIds[0]) handleReorderElement(selectedElementIds[0], 'back') } },
+        ]
+      case 'Ajuda':
+        return [
+          { label: 'Ctrl+Z — Desfazer', action: () => {} },
+          { label: 'Ctrl+C / X / V — Copiar/Recortar/Colar', action: () => {} },
+          { label: 'Ctrl+A — Selecionar tudo', action: () => {} },
+          { label: 'Ctrl+G — Agrupar', action: () => {} },
+          { label: 'Delete — Excluir elemento', action: () => {} },
+        ]
+    }
+  }
+
   if (!activePresentation || !activeSlide) return null
 
   const selectedElementId = selectedElementIds[selectedElementIds.length - 1] ?? null
   const showBothPanels = !slidesIntegrationDismissed && slidesActiveIntegrationId !== null
   const showEditorOnly = slidesIntegrationDismissed
+  const currentZoomLabel = ZOOM_OPTIONS.find((o) => o.value === slidesZoom)?.label ?? `${Math.round(slidesZoom * 100)}%`
+  const totalSlides = activePresentation.slides.length
 
   return (
     <div
-      className="flex-1 flex h-full outline-none"
+      className="flex flex-col h-screen w-screen overflow-hidden outline-none bg-[var(--bg-primary)]"
       tabIndex={-1}
       onKeyDown={handleKeyDown}
     >
@@ -576,165 +686,402 @@ export const SlidesPage = () => {
         onCreateSlide={createBlankSlide}
       />
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="h-12 border-b border-[var(--border)] flex items-center px-4 gap-2 flex-shrink-0 overflow-x-auto">
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {ELEMENT_TOOLS.map(({ icon: Icon, label, type }) => (
+      {/* Headers wrapper — ref para fechar dropdowns ao clicar fora */}
+      <div ref={menuBarRef} className="flex flex-col flex-shrink-0">
+
+      {/* Header Row 1 — título e menus */}
+      <div
+        className="h-11 flex items-center px-3 gap-1 border-b border-[var(--border)] bg-[var(--bg-secondary)] flex-shrink-0"
+      >
+        {/* Logo DataSlide */}
+        <button
+          onClick={() => setActiveApp('dashboard')}
+          title="Voltar ao Dashboard"
+          className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center flex-shrink-0 hover:bg-brand-600 transition-colors mr-1"
+        >
+          <Zap size={15} className="text-white" />
+        </button>
+
+        {/* Nome da apresentação */}
+        {isEditingTitle ? (
+          <input
+            ref={titleInputRef}
+            value={editingTitle}
+            onChange={(e) => setEditingTitle(e.target.value)}
+            onBlur={handleConfirmTitleEdit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleConfirmTitleEdit()
+              if (e.key === 'Escape') setIsEditingTitle(false)
+            }}
+            className="text-sm font-medium text-[var(--text-primary)] bg-[var(--bg-glass)] border border-brand-500 rounded px-2 py-0.5 outline-none w-48 flex-shrink-0"
+          />
+        ) : (
+          <span
+            onClick={handleStartTitleEdit}
+            title="Clique para renomear"
+            className="text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-glass)] rounded px-2 py-0.5 cursor-text flex-shrink-0 max-w-[200px] truncate"
+          >
+            {activePresentation.name}
+          </span>
+        )}
+
+        {/* Menu items */}
+        <div className="flex items-center ml-1">
+          {MENU_ITEMS.map((menu) => (
+            <div key={menu} className="relative">
               <button
-                key={type}
-                title={label}
-                onClick={() => handleAddElement(type)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--bg-glass)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                onClick={() => setOpenMenu(openMenu === menu ? null : menu)}
+                className={cn(
+                  'text-xs px-2 py-1 rounded hover:bg-[var(--bg-glass)] transition-colors flex-shrink-0',
+                  openMenu === menu
+                    ? 'text-[var(--text-primary)] bg-[var(--bg-glass)]'
+                    : 'text-[var(--text-secondary)]'
+                )}
               >
-                <Icon size={16} />
+                {menu}
               </button>
-            ))}
-          </div>
 
-          <div className="w-px h-5 bg-[var(--border)] flex-shrink-0" />
+              {openMenu === menu && (
+                <div className="absolute top-full left-0 mt-0.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg shadow-xl z-50 py-1 min-w-[200px]">
+                  {getMenuItems(menu).map((item) => (
+                    <button
+                      key={item.label}
+                      onClick={() => { item.action(); setOpenMenu(null) }}
+                      className="w-full text-left px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-glass)] hover:text-[var(--text-primary)] flex items-center justify-between transition-colors"
+                    >
+                      <span>{item.label}</span>
+                      {item.active !== undefined && (
+                        <span className={cn('w-2 h-2 rounded-full', item.active ? 'bg-brand-500' : 'bg-transparent border border-[var(--border)]')} />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
 
-          {selectedElementIds.length >= 2 && (
-            <>
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                {([
-                  ['left', AlignStartVertical, 'Alinhar à esquerda'],
-                  ['centerH', AlignCenterVertical, 'Centralizar horizontal'],
-                  ['right', AlignEndVertical, 'Alinhar à direita'],
-                  ['top', AlignStartHorizontal, 'Alinhar ao topo'],
-                  ['middleV', AlignCenterHorizontal, 'Centralizar vertical'],
-                  ['bottom', AlignEndHorizontal, 'Alinhar à base'],
-                  ['distributeH', AlignHorizontalDistributeCenter, 'Distribuir horizontalmente'],
-                  ['distributeV', AlignVerticalDistributeCenter, 'Distribuir verticalmente'],
-                ] as [Parameters<typeof handleAlign>[0], React.ElementType, string][]).map(([type, Icon, title]) => (
+        <div className="flex-1" />
+
+        {/* Botões direita */}
+        <button
+          className="text-xs px-3 py-1.5 rounded hover:bg-[var(--bg-glass)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
+        >
+          Redefinir
+        </button>
+        <button className="btn-secondary text-xs h-7 py-0 flex-shrink-0">
+          <Share2 size={12} /> Compartilhar
+        </button>
+        <button
+          onClick={() => setIsPresentMode(true)}
+          className="btn-primary text-xs h-7 py-0 flex-shrink-0"
+        >
+          <Play size={12} /> Apresentar
+        </button>
+        <button
+          title="Mais opções"
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
+        >
+          <MoreHorizontal size={15} />
+        </button>
+      </div>
+
+      {/* Header Row 2 — toolbar de edição */}
+      <div
+        className="h-10 flex items-center px-3 gap-0.5 border-b border-[var(--border)] bg-[var(--bg-secondary)] flex-shrink-0 overflow-x-auto"
+      >
+        {/* Desfazer / Refazer */}
+        <button
+          title="Desfazer (Ctrl+Z)"
+          onClick={handleUndo}
+          disabled={undoHistory.length === 0}
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <Undo2 size={14} />
+        </button>
+        <button
+          title="Refazer"
+          disabled
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <Redo2 size={14} />
+        </button>
+
+        <Separator />
+
+        {/* Cursor de seleção */}
+        <button
+          title="Cursor de seleção"
+          className="w-7 h-7 flex items-center justify-center rounded bg-[rgba(79,99,247,0.2)] text-[#748bff] transition-colors"
+        >
+          <MousePointer2 size={14} />
+        </button>
+
+        {/* Zoom */}
+        <div className="relative flex-shrink-0">
+          <button
+            onClick={() => { setOpenZoomDropdown((v) => !v); setOpenChartDropdown(false); setOpenControlDropdown(false) }}
+            className="h-7 px-2 flex items-center gap-1 rounded hover:bg-[var(--bg-glass)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-xs"
+          >
+            {currentZoomLabel}
+            <ChevronDown size={11} />
+          </button>
+          {openZoomDropdown && (
+            <div className="absolute top-full left-0 mt-0.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg shadow-xl z-50 py-1 min-w-[90px]">
+              {ZOOM_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setSlidesZoom(opt.value); setOpenZoomDropdown(false) }}
+                  className={cn(
+                    'w-full text-left px-3 py-1.5 text-xs transition-colors',
+                    slidesZoom === opt.value
+                      ? 'text-brand-400 bg-[rgba(79,99,247,0.1)]'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-glass)] hover:text-[var(--text-primary)]'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <Separator />
+
+        {/* Navegação de slides */}
+        <button
+          title="Slide anterior"
+          onClick={() => setActiveSlideIndex((i) => Math.max(0, i - 1))}
+          disabled={activeSlideIndex === 0}
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeft size={14} />
+        </button>
+        <span className="text-xs text-[var(--text-muted)] flex-shrink-0 px-1 select-none">
+          Página {activeSlideIndex + 1} de {totalSlides}
+        </span>
+        <button
+          title="Próximo slide"
+          onClick={() => setActiveSlideIndex((i) => Math.min(totalSlides - 1, i + 1))}
+          disabled={activeSlideIndex === totalSlides - 1}
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight size={14} />
+        </button>
+
+        <Separator />
+
+        {/* Centro — inserir elementos */}
+        <div className="flex items-center gap-0.5 flex-1 justify-center">
+          {/* Adicionar dados */}
+          <button
+            title="Adicionar dados"
+            onClick={() => setShowIntegrationModal(true)}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            <Database size={14} />
+          </button>
+
+          <Separator />
+
+          {/* Adicionar gráfico */}
+          <div className="relative">
+            <button
+              onClick={() => { setOpenChartDropdown((v) => !v); setOpenControlDropdown(false); setOpenZoomDropdown(false) }}
+              title="Adicionar gráfico"
+              className="h-7 px-2 flex items-center gap-1 rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors text-xs"
+            >
+              <BarChart2 size={14} />
+              <ChevronDown size={11} />
+            </button>
+            {openChartDropdown && (
+              <div className="absolute top-full left-0 mt-0.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg shadow-xl z-50 py-1 min-w-[130px]">
+                {CHART_OPTIONS.map((opt) => (
                   <button
-                    key={type}
-                    title={title}
-                    onClick={() => handleAlign(type)}
-                    className="w-7 h-7 flex items-center justify-center rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                    key={opt.chartType}
+                    onClick={() => handleAddChart(opt)}
+                    className="w-full text-left px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-glass)] hover:text-[var(--text-primary)] transition-colors"
                   >
-                    <Icon size={14} />
+                    {opt.label}
                   </button>
                 ))}
               </div>
-              <div className="w-px h-5 bg-[var(--border)] flex-shrink-0" />
+            )}
+          </div>
+
+          {/* Adicionar controle */}
+          <div className="relative">
+            <button
+              onClick={() => { setOpenControlDropdown((v) => !v); setOpenChartDropdown(false); setOpenZoomDropdown(false) }}
+              title="Adicionar controle"
+              className="h-7 px-2 flex items-center gap-1 rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors text-xs"
+            >
+              <Layers size={14} />
+              <ChevronDown size={11} />
+            </button>
+            {openControlDropdown && (
+              <div className="absolute top-full left-0 mt-0.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg shadow-xl z-50 py-1 min-w-[160px]">
+                {CONTROL_OPTIONS.map((label) => (
+                  <button
+                    key={label}
+                    onClick={() => setOpenControlDropdown(false)}
+                    className="w-full text-left px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-glass)] hover:text-[var(--text-primary)] transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Inserir texto, imagem, shape */}
+          <button
+            title="Inserir texto"
+            onClick={() => handleAddElement('text')}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            <Type size={14} />
+          </button>
+          <button
+            title="Inserir imagem"
+            onClick={() => handleAddElement('image')}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            <Image size={14} />
+          </button>
+          <button
+            title="Inserir shape"
+            onClick={() => handleAddElement('shape')}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            <Layers size={14} />
+          </button>
+
+          <Separator />
+
+          {/* Grade e guias inteligentes */}
+          <button
+            title={gridEnabled ? 'Desativar grade' : 'Ativar grade'}
+            onClick={() => setGridEnabled(!gridEnabled)}
+            className={cn(
+              'w-7 h-7 flex items-center justify-center rounded transition-colors',
+              gridEnabled
+                ? 'bg-[rgba(79,99,247,0.2)] text-[#748bff]'
+                : 'hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            )}
+          >
+            <Grid3x3 size={14} />
+          </button>
+          <button
+            title={smartGuidesEnabled ? 'Desativar guias inteligentes' : 'Ativar guias inteligentes'}
+            onClick={() => setSmartGuidesEnabled(!smartGuidesEnabled)}
+            className={cn(
+              'w-7 h-7 flex items-center justify-center rounded transition-colors',
+              smartGuidesEnabled
+                ? 'bg-[rgba(79,99,247,0.2)] text-[#748bff]'
+                : 'hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            )}
+          >
+            <Magnet size={14} />
+          </button>
+
+          {/* Alinhamento (só aparece com múltipla seleção) */}
+          {selectedElementIds.length >= 2 && (
+            <>
+              <Separator />
+              {([
+                ['left', AlignStartVertical, 'Alinhar à esquerda'],
+                ['centerH', AlignCenterVertical, 'Centralizar horizontal'],
+                ['right', AlignEndVertical, 'Alinhar à direita'],
+                ['top', AlignStartHorizontal, 'Alinhar ao topo'],
+                ['middleV', AlignCenterHorizontal, 'Centralizar vertical'],
+                ['bottom', AlignEndHorizontal, 'Alinhar à base'],
+                ['distributeH', AlignHorizontalDistributeCenter, 'Distribuir horizontalmente'],
+                ['distributeV', AlignVerticalDistributeCenter, 'Distribuir verticalmente'],
+              ] as [Parameters<typeof handleAlign>[0], React.ElementType, string][]).map(([type, Icon, title]) => (
+                <button
+                  key={type}
+                  title={title}
+                  onClick={() => handleAlign(type)}
+                  className="w-7 h-7 flex items-center justify-center rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  <Icon size={13} />
+                </button>
+              ))}
             </>
           )}
-
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button
-              title={gridEnabled ? 'Desativar grade' : 'Ativar grade'}
-              onClick={() => setGridEnabled(!gridEnabled)}
-              className={cn(
-                'w-7 h-7 flex items-center justify-center rounded transition-colors',
-                gridEnabled
-                  ? 'bg-[rgba(79,99,247,0.2)] text-[#748bff]'
-                  : 'hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              )}
-            >
-              <Grid size={14} />
-            </button>
-            <button
-              title={smartGuidesEnabled ? 'Desativar guias inteligentes' : 'Ativar guias inteligentes'}
-              onClick={() => setSmartGuidesEnabled(!smartGuidesEnabled)}
-              className={cn(
-                'w-7 h-7 flex items-center justify-center rounded transition-colors',
-                smartGuidesEnabled
-                  ? 'bg-[rgba(79,99,247,0.2)] text-[#748bff]'
-                  : 'hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              )}
-            >
-              <Magnet size={14} />
-            </button>
-          </div>
-
-          <div className="w-px h-5 bg-[var(--border)] flex-shrink-0" />
-          <div className="flex-1" />
-
-          <div className="flex items-center gap-2">
-            {activePresentation.updatedAt && (
-              <span className="text-xs text-[var(--text-muted)]">
-                Salvo {formatRelativeTime(activePresentation.updatedAt)}
-              </span>
-            )}
-            <button className="btn-secondary text-xs h-8 py-0">
-              <Share2 size={13} /> Compartilhar
-            </button>
-            <button className="btn-secondary text-xs h-8 py-0">
-              <Download size={13} /> Exportar
-            </button>
-            <button
-              onClick={() => setIsPresentMode(true)}
-              className="btn-primary text-xs h-8 py-0"
-            >
-              <Play size={13} /> Apresentar
-            </button>
-          </div>
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
-          <SlideThumbnailStrip
-            slides={activePresentation.slides}
-            activeSlideIndex={activeSlideIndex}
-            isCollapsed={isThumbnailCollapsed}
-            onSelectSlide={handleSelectSlide}
-            onAddSlide={handleAddSlide}
-            onToggleCollapse={() => setIsThumbnailCollapsed((v) => !v)}
-            onDuplicateSlide={handleDuplicateSlide}
-            onDeleteSlide={handleDeleteSlide}
-            onReorderSlide={handleReorderSlide}
-            onToggleSlideHidden={handleToggleSlideHidden}
-          />
+        <Separator />
 
-          <SlideCanvas
-            slide={activeSlide}
-            selectedElementIds={selectedElementIds}
-            cropElementId={cropElementId}
-            gridEnabled={gridEnabled}
-            gridSize={gridSize}
-            smartGuidesEnabled={smartGuidesEnabled}
-            onSelectElement={handleSelectElement}
-            onSelectNone={() => { setSelectedElementIds([]); setCropElementId(null) }}
-            onUpdateElement={handleUpdateElement}
-            onUpdateMultiple={handleUpdateMultiple}
-            onInteractionStart={pushUndo}
-            onEnterCrop={(id) => setCropElementId(id)}
-            onExitCrop={() => setCropElementId(null)}
-            onGroupElements={handleGroupElements}
-            onDeleteSelected={() => {
-              if (!activePresentation || !activeSlide || selectedElementIds.length === 0) return
-              pushUndo()
-              selectedElementIds.forEach((id) => removeElement(activePresentation.id, activeSlide.id, id))
-              setSelectedElementIds([])
-            }}
-            onCopySelected={() => {
-              const selected = activeSlide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? []
-              if (selected.length > 0) setClipboard(selected)
-            }}
-          />
-
-          {showBothPanels && (
-            <>
-              <SlideEditorPanel
-                slide={activeSlide}
-                slideIndex={activeSlideIndex}
-                slideCount={activePresentation.slides.length}
-                selectedElementId={selectedElementId}
-                isCollapsed={isEditorCollapsed}
-                onUpdateSlide={handleUpdateSlide}
-                onUpdateElement={handleUpdateElement}
-                onDeleteElement={handleDeleteElement}
-                onReorderElement={handleReorderElement}
-                onToggleCollapse={() => setIsEditorCollapsed((v) => !v)}
-              />
-              <SlideDataPanel
-                integrationId={slidesActiveIntegrationId!}
-                onChangeIntegration={() => setShowIntegrationModal(true)}
-                onAddMetricElement={handleAddMetricElement}
-              />
-            </>
+        {/* Direita — tema e pausar atualizações */}
+        <button
+          title="Tema e layout"
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
+        >
+          <Palette size={14} />
+        </button>
+        <button
+          title={slidesUpdatesActive ? 'Pausar atualizações' : 'Retomar atualizações'}
+          onClick={toggleSlidesUpdates}
+          className={cn(
+            'w-7 h-7 flex items-center justify-center rounded transition-colors flex-shrink-0',
+            slidesUpdatesActive
+              ? 'hover:bg-[var(--bg-glass)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              : 'bg-[rgba(239,68,68,0.15)] text-red-400'
           )}
+        >
+          {slidesUpdatesActive ? <PlayCircle size={14} /> : <PauseCircle size={14} />}
+        </button>
+      </div>
+      </div>{/* fim headers wrapper */}
 
-          {showEditorOnly && !showBothPanels && (
+      {/* Layout principal */}
+      <div className="flex flex-1 overflow-hidden">
+        <SlideThumbnailStrip
+          slides={activePresentation.slides}
+          activeSlideIndex={activeSlideIndex}
+          isCollapsed={isThumbnailCollapsed}
+          onSelectSlide={handleSelectSlide}
+          onAddSlide={handleAddSlide}
+          onToggleCollapse={() => setIsThumbnailCollapsed((v) => !v)}
+          onDuplicateSlide={handleDuplicateSlide}
+          onDeleteSlide={handleDeleteSlide}
+          onReorderSlide={handleReorderSlide}
+          onToggleSlideHidden={handleToggleSlideHidden}
+        />
+
+        <SlideCanvas
+          slide={activeSlide}
+          selectedElementIds={selectedElementIds}
+          cropElementId={cropElementId}
+          gridEnabled={gridEnabled}
+          gridSize={gridSize}
+          smartGuidesEnabled={smartGuidesEnabled}
+          onSelectElement={handleSelectElement}
+          onSelectNone={() => { setSelectedElementIds([]); setCropElementId(null) }}
+          onUpdateElement={handleUpdateElement}
+          onUpdateMultiple={handleUpdateMultiple}
+          onInteractionStart={pushUndo}
+          onEnterCrop={(id) => setCropElementId(id)}
+          onExitCrop={() => setCropElementId(null)}
+          onGroupElements={handleGroupElements}
+          onDeleteSelected={() => {
+            if (!activePresentation || !activeSlide || selectedElementIds.length === 0) return
+            pushUndo()
+            selectedElementIds.forEach((id) => removeElement(activePresentation.id, activeSlide.id, id))
+            setSelectedElementIds([])
+          }}
+          onCopySelected={() => {
+            const selected = activeSlide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? []
+            if (selected.length > 0) setClipboard(selected)
+          }}
+        />
+
+        {showBothPanels && (
+          <>
             <SlideEditorPanel
               slide={activeSlide}
               slideIndex={activeSlideIndex}
@@ -747,8 +1094,28 @@ export const SlidesPage = () => {
               onReorderElement={handleReorderElement}
               onToggleCollapse={() => setIsEditorCollapsed((v) => !v)}
             />
-          )}
-        </div>
+            <SlideDataPanel
+              integrationId={slidesActiveIntegrationId!}
+              onChangeIntegration={() => setShowIntegrationModal(true)}
+              onAddMetricElement={handleAddMetricElement}
+            />
+          </>
+        )}
+
+        {showEditorOnly && !showBothPanels && (
+          <SlideEditorPanel
+            slide={activeSlide}
+            slideIndex={activeSlideIndex}
+            slideCount={activePresentation.slides.length}
+            selectedElementId={selectedElementId}
+            isCollapsed={isEditorCollapsed}
+            onUpdateSlide={handleUpdateSlide}
+            onUpdateElement={handleUpdateElement}
+            onDeleteElement={handleDeleteElement}
+            onReorderElement={handleReorderElement}
+            onToggleCollapse={() => setIsEditorCollapsed((v) => !v)}
+          />
+        )}
       </div>
     </div>
   )
